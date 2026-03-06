@@ -68,8 +68,8 @@ with st.sidebar:
     st.header("📐 Geometry & Mesh")
     dimx = st.number_input("Domain X (in)", value=240, min_value=1)
     dimy = st.number_input("Domain Y (in)", value=192, min_value=1)
-    nelx = st.number_input("Elements X", value=120, min_value=1,max_value=180)
-    nely = st.number_input("Elements Y", value=96, min_value=1,max_value=180)
+    nelx = st.number_input("Elements X", value=120, min_value=1,max_value=150)
+    nely = st.number_input("Elements Y", value=96, min_value=1,max_value=150)
 
     st.header("🧪 Material Properties")
     E = st.number_input("Elastic Modulus (psi)", value=1500000)
@@ -340,6 +340,7 @@ if st.session_state.run_finished:
         type="primary"
 
     )
+
 
 
 
