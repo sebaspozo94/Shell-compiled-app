@@ -245,9 +245,11 @@ if st.session_state.run_finished:
         st.session_state.cam_up = dict(x=0, y=0, z=1) 
     if "z_scale_val" not in st.session_state:
         st.session_state.z_scale_val = int(100*tmax/max(dimx, dimy))
-    if "update_camera" not in st.session_state: # Use update_camera flag
+    if "view_rev" not in st.session_state:
+        st.session_state.view_rev = 0
+    if "update_camera" not in st.session_state:
         st.session_state.update_camera = True
-        
+
     # Create the buttons in a row
     view_cols = st.columns(5)
     if view_cols[0].button("⬇️ Bottom (XY)"):
@@ -324,7 +326,7 @@ if st.session_state.run_finished:
 
     fig = go.Figure(data=[roof_surface, bottom_surface])
 
-    # 1. Build the base scene settings without the camera
+    # 1. Build the base scene settings WITHOUT the camera
     max_dim = max(dimx, dimy)
     z_ratio = z_scale_pct / 100.0
 
@@ -335,18 +337,20 @@ if st.session_state.run_finished:
         aspectratio=dict(x=dimx/max_dim, y=dimy/max_dim, z=z_ratio)
     )
 
-    # 2. Add the camera ONLY if a button was clicked
+    # 2. Add the camera ONLY if a button triggered it
     if st.session_state.update_camera:
         scene_settings["camera"] = dict(
             eye=st.session_state.cam_eye,
             up=st.session_state.cam_up
         )
+        # Increment the uirevision counter to FORCE Plotly to adopt the new camera!
+        st.session_state.view_rev += 1
         st.session_state.update_camera = False
 
-    # 3. Apply the layout using EXACTLY the scene_settings dictionary
+    # 3. Apply the layout using EXACTLY the scene_settings dictionary and the dynamic view_rev
     fig.update_layout(
-        uirevision="constant_locked_view", 
-        scene=scene_settings,  # <--- CRITICAL FIX: This uses the dynamically built dictionary!
+        uirevision=st.session_state.view_rev, 
+        scene=scene_settings,
         margin=dict(l=0, r=0, b=0, t=0),
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
@@ -388,6 +392,7 @@ if st.session_state.run_finished:
         type="primary"
 
     )
+
 
 
 
