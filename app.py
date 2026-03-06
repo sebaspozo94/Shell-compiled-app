@@ -64,7 +64,7 @@ with st.sidebar:
 
     st.header("🧪 Material Properties")
     E = st.number_input("Elastic Modulus (psi)", value=1500000)
-    nu = st.slider("Poisson's Ratio (ν)", 0.01, 1, 0.3)
+    nu = st.slider("Poisson's Ratio (ν)", 0.0, 0.49, 0.3)
     rho = st.number_input("Material Density (ρ)", value=0.0145)
     sw_toggle = st.checkbox("Include Self-Weight", value=True)
     SW = 1 if sw_toggle else 0
