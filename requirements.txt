@@ -5,3 +5,4 @@ plotly
 numpy-stl
 scipy
 pandas
+pypardiso
