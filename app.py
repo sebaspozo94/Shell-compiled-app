@@ -207,22 +207,44 @@ if st.session_state.run_finished:
         y_1d = (y_1d[:-1] + y_1d[1:]) / 2.0
     X_mesh, Y_mesh = np.meshgrid(x_1d, y_1d)
 
-    # Request #3: Make the solid hang from the base (Z=0 down to -Thickness)
+    # Request #3: Invert Z to hang from the base
     Z_plot_neg = -Z_plot 
 
-    # Request #4 & #1: Interactive Plotly Figure with Portfolio Colors
-    # 'Blues_r' gives a deep blue for thick areas and light slate/white for thin areas
-    fig = go.Figure(data=[go.Surface(
+    # --- NEW: Custom Colormap (Request #3) ---
+    # 0.0 is the thickest part (-tmax) -> Deep Blue
+    # 1.0 is the thinnest part (0) -> Slate Gray instead of pure white
+    custom_colorscale = [
+        [0.0, '#08306b'], 
+        [0.4, '#2563eb'], # Your portfolio's primary blue
+        [1.0, '#cbd5e1']  # Slate gray to stand out from the white background
+    ]
+
+    # --- NEW: Flat Roof Surface (Request #1) ---
+    # We create a surface of pure zeros to cap the top of the solid
+    roof_surface = go.Surface(
+        z=np.zeros_like(Z_plot_neg),
+        x=X_mesh,
+        y=Y_mesh,
+        colorscale=[[0, '#cbd5e1'], [1, '#cbd5e1']], # Flat slate gray to match
+        showscale=False,  # Hides the colorbar for this specific layer
+        hoverinfo='skip'  # Keeps the tooltip clean when users hover over the top
+    )
+
+    # The main bottom optimized surface
+    bottom_surface = go.Surface(
         z=Z_plot_neg, 
         x=X_mesh, 
         y=Y_mesh, 
-        colorscale='Blues_r', 
+        colorscale=custom_colorscale, 
         cmin=-tmax, 
         cmax=0,
         colorbar=dict(title='Thickness (mm)', outlinewidth=0, tickfont=dict(color='#475569'))
-    )])
+    )
 
-    # Request #2: Equal Axis Condition
+    # Add BOTH surfaces to the figure
+    fig = go.Figure(data=[roof_surface, bottom_surface])
+
+    # Request #2: Equal Axis Condition & Z-Scaling
     max_dim = max(dimx, dimy)
     z_ratio = z_scale_pct / 100.0
 
@@ -231,9 +253,11 @@ if st.session_state.run_finished:
             xaxis=dict(range=[0, dimx], title='X (mm)', backgroundcolor='white', gridcolor='#e2e8f0', showbackground=True),
             yaxis=dict(range=[0, dimy], title='Y (mm)', backgroundcolor='white', gridcolor='#e2e8f0', showbackground=True),
             zaxis=dict(range=[-tmax, 0], title='Z (mm)', backgroundcolor='white', gridcolor='#e2e8f0', showbackground=True),
-            # This perfectly locks X and Y to their physical proportions!
             aspectratio=dict(x=dimx/max_dim, y=dimy/max_dim, z=z_ratio),
-            camera=dict(eye=dict(x=1.5, y=-1.5, z=1.2)) # Default viewing angle
+            
+            # --- NEW: Default Camera View from Below (Request #2) ---
+            # Setting 'z' to a negative number forces the camera to look up from underneath
+            camera=dict(eye=dict(x=1.2, y=-1.5, z=-0.8)) 
         ),
         margin=dict(l=0, r=0, b=0, t=0),
         paper_bgcolor='rgba(0,0,0,0)',
@@ -276,4 +300,5 @@ if st.session_state.run_finished:
         type="primary"
 
     )
+
 
