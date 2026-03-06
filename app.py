@@ -330,12 +330,6 @@ if st.session_state.run_finished:
             zaxis=dict(range=[-tmax, 0], title='Z (in)', backgroundcolor='white', gridcolor='#e2e8f0', showbackground=True),
             aspectratio=dict(x=dimx/max_dim, y=dimy/max_dim, z=z_ratio),
 
-            # Apply the camera state from the buttons
-            camera=dict(
-                eye=st.session_state.cam_eye,
-                up=st.session_state.cam_up
-            )
-
         ),
         margin=dict(l=0, r=0, b=0, t=0),
         paper_bgcolor='rgba(0,0,0,0)',
@@ -378,6 +372,7 @@ if st.session_state.run_finished:
         type="primary"
 
     )
+
 
 
 
