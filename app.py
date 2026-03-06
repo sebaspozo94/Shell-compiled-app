@@ -245,24 +245,36 @@ if st.session_state.run_finished:
         st.session_state.cam_up = dict(x=0, y=0, z=1) # Default Z is up
     if "z_scale_val" not in st.session_state:
         st.session_state.z_scale_val = 100*tmax/max(dimx, dimy)    
-    
+    if "view_revision" not in st.session_state: # <--- NEW
+        st.session_state.view_revision = 0
+        
     # Create the buttons in a row
     view_cols = st.columns(5)
+    
     if view_cols[0].button("⬇️ Bottom (XY)"):
         st.session_state.cam_eye = dict(x=0, y=0, z=-2.5)
-        st.session_state.cam_up = dict(x=0, y=1, z=0) # Orient Y upwards on screen
+        st.session_state.cam_up = dict(x=0, y=1, z=0) 
+        st.session_state.view_revision += 1 # <--- NEW
+        
     if view_cols[1].button("➡️ Front (XZ)"):
         st.session_state.cam_eye = dict(x=0, y=-2.5, z=0)
         st.session_state.cam_up = dict(x=0, y=0, z=1)
+        st.session_state.view_revision += 1 # <--- NEW
+        
     if view_cols[2].button("↗️ Side (YZ)"):
         st.session_state.cam_eye = dict(x=-2.5, y=0, z=0)
         st.session_state.cam_up = dict(x=0, y=0, z=1)
+        st.session_state.view_revision += 1 # <--- NEW
+        
     if view_cols[3].button("🔄 Reset View"):
         st.session_state.cam_eye = dict(x=1.2, y=-1.5, z=-0.8)
         st.session_state.cam_up = dict(x=0, y=0, z=1)
+        st.session_state.view_revision += 1 # <--- NEW
+        
     if view_cols[4].button("📏 True Scale (Z)"):
         # Assuming 100% represents the true physical 1:1 aspect ratio
         st.session_state.z_scale_val = 100*tmax/max(dimx, dimy) 
+        st.session_state.view_revision += 1 # <--- NEW
 
     # UI Controls
     col_slider, col_scale = st.columns([2, 1])
@@ -324,6 +336,7 @@ if st.session_state.run_finished:
     z_ratio = z_scale_pct / 100.0
 
     fig.update_layout(
+        uirevision=st.session_state.view_revision, # <--- THE MAGIC FIX
         scene=dict(
             xaxis=dict(range=[0, dimx], title='X (in)', backgroundcolor='white', gridcolor='#e2e8f0', showbackground=True),
             yaxis=dict(range=[0, dimy], title='Y (in)', backgroundcolor='white', gridcolor='#e2e8f0', showbackground=True),
@@ -377,6 +390,7 @@ if st.session_state.run_finished:
         type="primary"
 
     )
+
 
 
 
