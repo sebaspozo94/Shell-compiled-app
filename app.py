@@ -55,6 +55,11 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
+# --- NEW: App Objective Expander ---
+with st.expander("🎯 App Objective"):
+    st.markdown("""
+    **Objective:** Distribute a constant amount of material to maximize the stiffness of a shell-type structure under external distributed load and self-weight.
+    """)
 
 # --- 1. SETUP SESSION STATE ---
 if 'run_finished' not in st.session_state:
@@ -373,6 +378,7 @@ if st.session_state.run_finished:
         type="primary"
 
     )
+
 
 
 
