@@ -91,46 +91,102 @@ with st.sidebar:
 
     st.header("⚖️ Loads & Constraints")
     w_u = st.number_input("Distributed Load (w_u)", value=0.2778)
-    
+        
     st.subheader("Boundary Conditions")
-    # --- NEW: Clear explanation of the geometry logic ---
+    
     with st.expander("ℹ️ How to define supports"):
         st.markdown("""
         Each row represents a boundary condition zone. **X** and **Y** define the center coordinate of a rectangle with dimensions **Width** (dx) and **Height** (dy). All nodes that fall inside this rectangular area will have the boundary condition specified in the **Type** column.
         """)
-    # 1. Create a Pandas DataFrame with clear column names and text instead of 0/1
-    default_bc = pd.DataFrame(
-        [
-            [48, 156, 4, 4, "Pinned"], 
-            [48, 36, 4, 4, "Pinned"],  
-            [192, 156, 4, 4, "Pinned"], 
-            [192, 36, 4, 4, "Pinned"]
-        ],
-        columns=["X (in)", "Y (in)", "Width", "Height", "Type"]
+    
+    # 1. Initialize the DataFrame into Session State ONLY IF it doesn't exist yet
+    if "bc_df" not in st.session_state:
+        st.session_state.bc_df = pd.DataFrame(
+            [
+                [48.0, 156.0, 4.0, 4.0, "Pinned"], 
+                [48.0, 36.0, 4.0, 4.0, "Pinned"],  
+                [192.0, 156.0, 4.0, 4.0, "Pinned"], 
+                [192.0, 36.0, 4.0, 4.0, "Pinned"]
+            ],
+            columns=["X (in)", "Y (in)", "Width", "Height", "Type"]
+        )
+    
+    # 2. Setup the Interactive Map
+    add_mode = st.toggle("🖱️ Click on Map to Add Pinned Support", value=False)
+    
+    fig2d = go.Figure()
+    
+    # Draw the main slab boundary (using your dimx and dimy variables)
+    fig2d.add_shape(
+        type="rect", x0=0, y0=0, x1=dimx, y1=dimy, 
+        line=dict(color="RoyalBlue", width=2), fillcolor="rgba(65, 105, 225, 0.1)"
     )
-
-    # 2. Use column_config to turn the "Type" column into a dropdown menu
+    
+    # Draw existing supports from the session state dataframe
+    for _, row in st.session_state.bc_df.iterrows():
+        hx, hy = row['Width'] / 2.0, row['Height'] / 2.0
+        color = "#ef4444" if row['Type'] == "Pinned" else "#22c55e" # Red for Pin, Green for Fix
+        
+        fig2d.add_shape(
+            type="rect", x0=row['X (in)'] - hx, y0=row['Y (in)'] - hy, x1=row['X (in)'] + hx, y1=row['Y (in)'] + hy,
+            line=dict(color=color, width=2), fillcolor=color
+        )
+    
+    # If Add Mode is ON, create a clickable grid (spacing every 12 inches)
+    if add_mode:
+        grid_x, grid_y = np.meshgrid(np.arange(0, dimx + 12, 12), np.arange(0, dimy + 12, 12))
+        fig2d.add_trace(go.Scatter(
+            x=grid_x.flatten(), y=grid_y.flatten(), mode='markers',
+            marker=dict(size=6, color='rgba(100, 100, 100, 0.4)'),
+            hoverinfo='none'
+        ))
+    
+    # Format the plot
+    fig2d.update_layout(
+        xaxis=dict(title="X (in)", range=[-20, dimx+20], scaleanchor="y", scaleratio=1),
+        yaxis=dict(title="Y (in)", range=[-20, dimy+20]),
+        height=400, margin=dict(l=0, r=0, t=10, b=0), showlegend=False, clickmode='event+select'
+    )
+    
+    # Render the plot and catch click events
+    event = st.plotly_chart(fig2d, on_select="rerun", selection_mode="points", key="bc_map")
+    
+    # 3. Process the click to add a new support
+    if add_mode and event and len(event.selection["points"]) > 0:
+        clicked_pt = event.selection["points"][0]
+        new_x, new_y = clicked_pt["x"], clicked_pt["y"]
+        
+        # Check for duplicates to prevent stacking them on the exact same spot
+        duplicate = st.session_state.bc_df[(st.session_state.bc_df['X (in)'] == new_x) & (st.session_state.bc_df['Y (in)'] == new_y)]
+        if duplicate.empty:
+            new_row = pd.DataFrame([[new_x, new_y, 4.0, 4.0, "Pinned"]], columns=["X (in)", "Y (in)", "Width", "Height", "Type"])
+            st.session_state.bc_df = pd.concat([st.session_state.bc_df, new_row], ignore_index=True)
+            st.rerun() # Force a refresh to show the new support instantly
+    
+    # 4. Your existing Data Editor setup (now reading from session_state)
     edited_bc_df = st.data_editor(
-        default_bc, 
+        st.session_state.bc_df, 
         num_rows="dynamic", 
         use_container_width=True,
-        hide_index=True, # Removes the ugly blank index column on the left
+        hide_index=True,
         column_config={
             "Type": st.column_config.SelectboxColumn(
                 "Support Type",
-                help="Select between Pinned (0) or Fixed (1)",
+                help="Select between Pinned or Fixed",
                 options=["Pinned", "Fixed"],
                 required=True,
             )
         }
     )
-
-    # 3. Convert the user's edits back into the numeric NumPy array your solver needs
-    # Map "Pinned" back to 0, and "Fixed" back to 1
+    
+    # 5. Two-Way Sync: If the user types in the table, update the session state and refresh the map
+    if not edited_bc_df.equals(st.session_state.bc_df):
+        st.session_state.bc_df = edited_bc_df
+        st.rerun()
+    
+    # 6. Convert for the solver (your original logic)
     solver_df = edited_bc_df.copy()
     solver_df["Type"] = solver_df["Type"].map({"Pinned": 0, "Fixed": 1})
-    
-    # Generate the final BCMatrix for logic.py
     BCMatrix = solver_df.to_numpy()
 
     st.header("🎯 Optimization Params")
@@ -387,6 +443,7 @@ if st.session_state.run_finished:
         type="primary"
 
     )
+
 
 
 
