@@ -79,8 +79,8 @@ with st.sidebar:
     
     # Group Elements
     col3, col4 = st.sidebar.columns(2)
-    elemx = col3.number_input("Elements X", value=120, step=4, min_value=1,max_value=150)
-    elemy = col4.number_input("Elements Y", value=96, step=4, min_value=1,max_value=150)
+    nelx = col3.number_input("Elements X", value=120, step=4, min_value=1,max_value=150)
+    nely = col4.number_input("Elements Y", value=96, step=4, min_value=1,max_value=150)
 
     # Hide Materials in an Expander (Closed by default)
     with st.sidebar.expander("🧪 Material Properties"):
@@ -443,6 +443,7 @@ if st.session_state.run_finished:
         type="primary"
 
     )
+
 
 
 
