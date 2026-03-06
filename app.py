@@ -224,7 +224,7 @@ if st.session_state.run_finished:
         st.session_state.cam_up = dict(x=0, y=0, z=1)
     if view_cols[4].button("📏 True Scale (Z)"):
         # Assuming 100% represents the true physical 1:1 aspect ratio
-        st.session_state.z_scale_val = 100 
+        st.session_state.z_scale_val = tmax/max(dimx, dimy) 
 
     # UI Controls
     col_slider, col_scale = st.columns([2, 1])
@@ -340,6 +340,7 @@ if st.session_state.run_finished:
         type="primary"
 
     )
+
 
 
 
