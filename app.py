@@ -57,10 +57,10 @@ if 'mesh_data' not in st.session_state:
 
 with st.sidebar:
     st.header("📐 Geometry & Mesh")
-    dimx = st.number_input("Domain X (in)", value=240, minvalue=1)
-    dimy = st.number_input("Domain Y (in)", value=192, minvalue=1)
-    nelx = st.number_input("Elements X", value=120, minvalue=1,maxvalue=180)
-    nely = st.number_input("Elements Y", value=96, minvalue=1,maxvalue=180)
+    dimx = st.number_input("Domain X (in)", value=240, min_value=1)
+    dimy = st.number_input("Domain Y (in)", value=192, min_value=1)
+    nelx = st.number_input("Elements X", value=120, min_value=1,max_value=180)
+    nely = st.number_input("Elements Y", value=96, min_value=1,max_value=180)
 
     st.header("🧪 Material Properties")
     E = st.number_input("Elastic Modulus (psi)", value=1500000)
