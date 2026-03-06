@@ -5,7 +5,8 @@ import numpy as np
 import logic  # This imports your compiled logic.so file
 import plotly.graph_objects as go
 import io
-from stl import mesh # from the numpy-stl package
+import stl              # <-- Add this line
+from stl import mesh 
 from scipy.spatial import Delaunay
 
 st.set_page_config(page_title="Shell Topology Opt", layout="wide")
@@ -273,4 +274,5 @@ if st.session_state.run_finished:
         file_name=f"Optimized_Slab_Iter{idx}.stl",
         mime="model/stl",
         type="primary"
+
     )
