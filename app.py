@@ -335,22 +335,27 @@ if st.session_state.run_finished:
     max_dim = max(dimx, dimy)
     z_ratio = z_scale_pct / 100.0
 
-    fig.update_layout(
-        uirevision=st.session_state.view_revision, # <--- THE MAGIC FIX
-        scene=dict(
-            xaxis=dict(range=[0, dimx], title='X (in)', backgroundcolor='white', gridcolor='#e2e8f0', showbackground=True),
-            yaxis=dict(range=[0, dimy], title='Y (in)', backgroundcolor='white', gridcolor='#e2e8f0', showbackground=True),
-            zaxis=dict(range=[-tmax, 0], title='Z (in)', backgroundcolor='white', gridcolor='#e2e8f0', showbackground=True),
-            aspectratio=dict(x=dimx/max_dim, y=dimy/max_dim, z=z_ratio),
-        ),
-        if st.session_state.update_camera:
+# 1. Build the base scene dictionary FIRST (Outside of update_layout)
+    scene_settings = dict(
+        xaxis=dict(range=[0, dimx], title='X (in)', backgroundcolor='white', gridcolor='#e2e8f0', showbackground=True),
+        yaxis=dict(range=[0, dimy], title='Y (in)', backgroundcolor='white', gridcolor='#e2e8f0', showbackground=True),
+        zaxis=dict(range=[-tmax, 0], title='Z (in)', backgroundcolor='white', gridcolor='#e2e8f0', showbackground=True),
+        aspectratio=dict(x=dimx/max_dim, y=dimy/max_dim, z=z_ratio)
+    )
+
+    # 2. Add the camera ONLY if a button was clicked (Outside of update_layout)
+    if st.session_state.update_camera:
         scene_settings["camera"] = dict(
             eye=st.session_state.cam_eye,
             up=st.session_state.cam_up
-            )
-            # Immediately turn the flag off so the next slider move doesn't reset the view!
-            st.session_state.update_camera = False
+        )
+        # Immediately turn the flag off so the next slider move doesn't reset the view!
+        st.session_state.update_camera = False
 
+    # 3. Pass the finished scene dictionary into update_layout
+    fig.update_layout(
+        uirevision="constant_locked_view", # <--- Forces Plotly to remember manual rotation
+        scene=scene_settings,
         margin=dict(l=0, r=0, b=0, t=0),
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
@@ -392,6 +397,7 @@ if st.session_state.run_finished:
         type="primary"
 
     )
+
 
 
 
