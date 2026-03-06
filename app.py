@@ -72,17 +72,22 @@ if 'mesh_data' not in st.session_state:
 
 with st.sidebar:
     st.header("📐 Geometry & Mesh")
-    dimx = st.number_input("Domain X (in)", value=240, min_value=1)
-    dimy = st.number_input("Domain Y (in)", value=192, min_value=1)
-    nelx = st.number_input("Elements X", value=120, min_value=1,max_value=150)
-    nely = st.number_input("Elements Y", value=96, min_value=1,max_value=150)
+    # Group Dimensions
+    col1, col2 = st.sidebar.columns(2)
+    dimx = col1.number_input("Domain X (in)", value=240, step=4, min_value=1)
+    dimy = col2.number_input("Domain Y (in)", value=192, step=4, min_value=1)
+    
+    # Group Elements
+    col3, col4 = st.sidebar.columns(2)
+    elemx = col3.number_input("Elements X", value=120, step=4, min_value=1,max_value=150)
+    elemy = col4.number_input("Elements Y", value=96, step=4, min_value=1,max_value=150)
 
-    st.header("🧪 Material Properties")
-    E = st.number_input("Elastic Modulus (psi)", value=1500000)
-    nu = st.slider("Poisson's Ratio (ν)", 0.0, 0.49, 0.3)
-    rho = st.number_input("Material Density (ρ)", value=0.0145)
-    sw_toggle = st.checkbox("Include Self-Weight", value=True)
-    SW = 1 if sw_toggle else 0
+    # Hide Materials in an Expander (Closed by default)
+    with st.sidebar.expander("🧪 Material Properties"):
+        E = st.number_input("Elastic Modulus (psi)", value=1500000, step=100000)
+        nu = st.slider("Poisson's Ratio (v)", 0.0, 0.5, 0.30)
+        rho = st.number_input("Material Density (p)", value=0.010, format="%.3f")
+        self_weight = st.checkbox("Include Self-Weight", value=True)
 
     st.header("⚖️ Loads & Constraints")
     w_u = st.number_input("Distributed Load (w_u)", value=0.2778)
@@ -382,6 +387,7 @@ if st.session_state.run_finished:
         type="primary"
 
     )
+
 
 
 
