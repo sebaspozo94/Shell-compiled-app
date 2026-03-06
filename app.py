@@ -9,6 +9,7 @@ import stl              # <-- Add this line
 from stl import mesh 
 from scipy.spatial import Delaunay
 from matplotlib.colors import LinearSegmentedColormap
+import pandas as pd
 
 # Define the custom Matplotlib colormap
 custom_cmap = LinearSegmentedColormap.from_list("custom_blues", ['#cbd5e1', '#2563eb', '#08306b'])
@@ -82,13 +83,41 @@ with st.sidebar:
     w_u = st.number_input("Distributed Load (w_u)", value=0.2778)
     
     st.subheader("Boundary Conditions")
-    st.caption("Rows: [x, y, width, height, type (0=Pin, 1=Fix)]")
-    default_bc = [
-        [48, 156, 4, 4, 0], [48, 36, 4, 4, 0], 
-        [192, 156, 4, 4, 0], [192, 36, 4, 4, 0]
-    ]
-    edited_bc = st.data_editor(default_bc, num_rows="dynamic", use_container_width=True)
-    BCMatrix = np.array(edited_bc)
+    
+    # 1. Create a Pandas DataFrame with clear column names and text instead of 0/1
+    default_bc = pd.DataFrame(
+        [
+            [48, 156, 4, 4, "Pinned"], 
+            [48, 36, 4, 4, "Pinned"],  
+            [192, 156, 4, 4, "Pinned"], 
+            [192, 36, 4, 4, "Pinned"]
+        ],
+        columns=["X (in)", "Y (in)", "Width", "Height", "Type"]
+    )
+
+    # 2. Use column_config to turn the "Type" column into a dropdown menu
+    edited_bc_df = st.data_editor(
+        default_bc, 
+        num_rows="dynamic", 
+        use_container_width=True,
+        hide_index=True, # Removes the ugly blank index column on the left
+        column_config={
+            "Type": st.column_config.SelectboxColumn(
+                "Support Type",
+                help="Select between Pinned (0) or Fixed (1)",
+                options=["Pinned", "Fixed"],
+                required=True,
+            )
+        }
+    )
+
+    # 3. Convert the user's edits back into the numeric NumPy array your solver needs
+    # Map "Pinned" back to 0, and "Fixed" back to 1
+    solver_df = edited_bc_df.copy()
+    solver_df["Type"] = solver_df["Type"].map({"Pinned": 0, "Fixed": 1})
+    
+    # Generate the final BCMatrix for logic.py
+    BCMatrix = solver_df.to_numpy()
 
     st.header("🎯 Optimization Params")
     vol_frac = st.slider("Volume Fraction", 0.05, 1.0, 0.3)
@@ -340,6 +369,7 @@ if st.session_state.run_finished:
         type="primary"
 
     )
+
 
 
 
