@@ -8,6 +8,9 @@ import io
 import stl              # <-- Add this line
 from stl import mesh 
 from scipy.spatial import Delaunay
+from matplotlib.colors import LinearSegmentedColormap
+# Define the custom Matplotlib colormap
+custom_cmap = LinearSegmentedColormap.from_list("custom_blues", ['#cbd5e1', '#2563eb', '#08306b'])
 
 st.set_page_config(page_title="Shell Topology Opt", layout="wide")
 
@@ -162,18 +165,17 @@ with col2:
             live_plot_spot = st.empty()
             
             def update_live_view(current_it, current_ch, current_Z):
-                status_text.info(f"⚙️ Optimizing... Iteration: {current_it} | Max Change: {current_ch:.4f}")
-                
                 fig_live, ax_live = plt.subplots(figsize=(10, 4))
                 fig_live.patch.set_alpha(0.0)
                 ax_live.axis('off') # Turn off axes for a cleaner live view
                 
                 ext = [0, dimx, 0, dimy] 
-                im = ax_live.imshow(current_Z, cmap='jet', vmin=0, vmax=tmax, extent=ext, origin='upper')
+                im = ax_live.imshow(current_Z, cmap=custom_cmap, vmin=0, vmax=tmax, extent=ext, origin='upper')
                 plt.colorbar(im, ax=ax_live, label='Thickness (mm)')
                 
                 live_plot_spot.pyplot(fig_live)
                 plt.close(fig_live)
+                status_text.info(f"⚙️ Optimizing... Iteration: {current_it} | Max Change: {current_ch:.4f}")
 
             with st.spinner("Crunching the numbers..."):
                 X, Y, Thickness, history = logic.run_topology_optimization(
@@ -196,14 +198,39 @@ if st.session_state.run_finished:
 
     steps = len(st.session_state.history)
     
-    # UI Controls for the 3D Viewer
+    # Initialize session states for the 3D viewer if they don't exist
+    if "cam_eye" not in st.session_state:
+        st.session_state.cam_eye = dict(x=1.2, y=-1.5, z=-0.8) # Default bottom-up isometric
+    if "cam_up" not in st.session_state:
+        st.session_state.cam_up = dict(x=0, y=0, z=1) # Default Z is up
+    if "z_scale_val" not in st.session_state:
+        st.session_state.z_scale_val = 15    
+    
+    # Create the buttons in a row
+    view_cols = st.columns(5)
+    if view_cols[0].button("⬇️ Bottom (XY)"):
+        st.session_state.cam_eye = dict(x=0, y=0, z=-2.5)
+        st.session_state.cam_up = dict(x=0, y=1, z=0) # Orient Y upwards on screen
+    if view_cols[1].button("➡️ Front (XZ)"):
+        st.session_state.cam_eye = dict(x=0, y=-2.5, z=0)
+        st.session_state.cam_up = dict(x=0, y=0, z=1)
+    if view_cols[2].button("↗️ Side (YZ)"):
+        st.session_state.cam_eye = dict(x=-2.5, y=0, z=0)
+        st.session_state.cam_up = dict(x=0, y=0, z=1)
+    if view_cols[3].button("🔄 Reset View"):
+        st.session_state.cam_eye = dict(x=1.2, y=-1.5, z=-0.8)
+        st.session_state.cam_up = dict(x=0, y=0, z=1)
+    if view_cols[4].button("📏 True Scale (Z)"):
+        # Assuming 100% represents the true physical 1:1 aspect ratio
+        st.session_state.z_scale_val = 100 
+
+    # UI Controls
     col_slider, col_scale = st.columns([2, 1])
     with col_slider:
         idx = st.slider("Iteration History", 0, steps - 1, steps - 1)
     with col_scale:
-        # Request #2: Z-Scale Slider (0% to 100% of max domain dimension)
-        z_scale_pct = st.slider("Visual Z-Scale (%)", 1, 100, 15)
-
+        # Crucial: tie the slider to the session_state key so the button can update it!
+        z_scale_pct = st.slider("Visual Z-Scale (%)", 1, 100, key="z_scale_val")
     Z_plot = st.session_state.history[idx]
     
     # Node to Element Center Fix (from earlier)
@@ -262,10 +289,13 @@ if st.session_state.run_finished:
             yaxis=dict(range=[0, dimy], title='Y (mm)', backgroundcolor='white', gridcolor='#e2e8f0', showbackground=True),
             zaxis=dict(range=[-tmax, 0], title='Z (mm)', backgroundcolor='white', gridcolor='#e2e8f0', showbackground=True),
             aspectratio=dict(x=dimx/max_dim, y=dimy/max_dim, z=z_ratio),
-            
-            # --- NEW: Default Camera View from Below (Request #2) ---
-            # Setting 'z' to a negative number forces the camera to look up from underneath
-            camera=dict(eye=dict(x=1.2, y=-1.5, z=-0.8)) 
+
+            # Apply the camera state from the buttons
+            camera=dict(
+                eye=st.session_state.cam_eye,
+                up=st.session_state.cam_up
+            )
+
         ),
         margin=dict(l=0, r=0, b=0, t=0),
         paper_bgcolor='rgba(0,0,0,0)',
@@ -308,6 +338,7 @@ if st.session_state.run_finished:
         type="primary"
 
     )
+
 
 
 
