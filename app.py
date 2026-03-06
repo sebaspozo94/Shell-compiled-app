@@ -238,52 +238,51 @@ if st.session_state.run_finished:
 
     steps = len(st.session_state.history)
     
-    # Initialize session states for the 3D viewer
+# Initialize session states for the 3D viewer
     if "cam_eye" not in st.session_state:
         st.session_state.cam_eye = dict(x=1.2, y=-1.5, z=-0.8) 
     if "cam_up" not in st.session_state:
         st.session_state.cam_up = dict(x=0, y=0, z=1) 
     if "z_scale_val" not in st.session_state:
-        st.session_state.z_scale_val = 100*tmax/max(dimx, dimy)    
-    if "view_rev" not in st.session_state: # <--- The trigger counter
-        st.session_state.view_rev = 0
+        st.session_state.z_scale_val = int(100*tmax/max(dimx, dimy))
+    if "update_camera" not in st.session_state: # Use update_camera flag
+        st.session_state.update_camera = True
         
-# Create the buttons in a row
+    # Create the buttons in a row
     view_cols = st.columns(5)
     if view_cols[0].button("⬇️ Bottom (XY)"):
         st.session_state.cam_eye = dict(x=0, y=0, z=-2.5)
         st.session_state.cam_up = dict(x=0, y=1, z=0) 
-        st.session_state.view_rev += 1 # <--- Trigger camera update
+        st.session_state.update_camera = True
         
     if view_cols[1].button("➡️ Front (XZ)"):
         st.session_state.cam_eye = dict(x=0, y=-2.5, z=0)
         st.session_state.cam_up = dict(x=0, y=0, z=1)
-        st.session_state.view_rev += 1 
+        st.session_state.update_camera = True
         
     if view_cols[2].button("↗️ Side (YZ)"):
         st.session_state.cam_eye = dict(x=-2.5, y=0, z=0)
         st.session_state.cam_up = dict(x=0, y=0, z=1)
-        st.session_state.view_rev += 1 
+        st.session_state.update_camera = True
         
     if view_cols[3].button("🔄 Reset View"):
         st.session_state.cam_eye = dict(x=1.2, y=-1.5, z=-0.8)
         st.session_state.cam_up = dict(x=0, y=0, z=1)
-        st.session_state.view_rev += 1 
+        st.session_state.update_camera = True
         
     if view_cols[4].button("📏 True Scale (Z)"):
-        st.session_state.z_scale_val = 100*tmax/max(dimx, dimy) 
-        st.session_state.view_rev += 1
+        st.session_state.z_scale_val = int(100*tmax/max(dimx, dimy))
+        st.session_state.update_camera = True
 
     # UI Controls
     col_slider, col_scale = st.columns([2, 1])
     with col_slider:
         idx = st.slider("Iteration History", 0, steps - 1, steps - 1)
     with col_scale:
-        # Crucial: tie the slider to the session_state key so the button can update it!
         z_scale_pct = st.slider("Visual Z-Scale (%)", 0, 100, key="z_scale_val")
     Z_plot = st.session_state.history[idx]
     
-    # Node to Element Center Fix (from earlier)
+    # Node to Element Center Fix
     x_1d = np.unique(st.session_state.X)
     y_1d = np.unique(st.session_state.Y)
     if len(x_1d) == Z_plot.shape[1] + 1:
@@ -292,30 +291,27 @@ if st.session_state.run_finished:
         y_1d = (y_1d[:-1] + y_1d[1:]) / 2.0
     X_mesh, Y_mesh = np.meshgrid(x_1d, y_1d)
 
-    # Request #3: Invert Z to hang from the base
+    # Invert Z to hang from the base
     Z_plot_neg = -Z_plot 
 
-    # --- NEW: Custom Colormap (Request #3) ---
-    # 0.0 is the thickest part (-tmax) -> Deep Blue
-    # 1.0 is the thinnest part (0) -> Slate Gray instead of pure white
+    # Custom Colormap
     custom_colorscale = [
         [0.0, '#08306b'], 
-        [0.4, '#2563eb'], # Your portfolio's primary blue
-        [1.0, '#cbd5e1']  # Slate gray to stand out from the white background
+        [0.4, '#2563eb'],
+        [1.0, '#cbd5e1'] 
     ]
 
-    # --- NEW: Flat Roof Surface (Request #1) ---
-    # We create a surface of pure zeros to cap the top of the solid
+    # Flat Roof Surface
     roof_surface = go.Surface(
         z=np.zeros_like(Z_plot_neg),
         x=X_mesh,
         y=Y_mesh,
-        colorscale=[[0, '#cbd5e1'], [1, '#cbd5e1']], # Flat slate gray to match
-        showscale=False,  # Hides the colorbar for this specific layer
-        hoverinfo='skip'  # Keeps the tooltip clean when users hover over the top
+        colorscale=[[0, '#cbd5e1'], [1, '#cbd5e1']],
+        showscale=False,
+        hoverinfo='skip' 
     )
 
-    # The main bottom optimized surface
+    # Main bottom optimized surface
     bottom_surface = go.Surface(
         z=Z_plot_neg, 
         x=X_mesh, 
@@ -326,10 +322,9 @@ if st.session_state.run_finished:
         colorbar=dict(title='Thickness (in)', outlinewidth=0, tickfont=dict(color='#475569'))
     )
 
-    # 1. Add BOTH surfaces to the figure
     fig = go.Figure(data=[roof_surface, bottom_surface])
 
-    # 2. Build the base scene without any camera directives
+    # 1. Build the base scene settings without the camera
     max_dim = max(dimx, dimy)
     z_ratio = z_scale_pct / 100.0
 
@@ -340,28 +335,18 @@ if st.session_state.run_finished:
         aspectratio=dict(x=dimx/max_dim, y=dimy/max_dim, z=z_ratio)
     )
 
-    # 3. Only apply the camera IF a button was clicked (uses .get() to prevent errors)
-    if st.session_state.get("update_camera", True):
+    # 2. Add the camera ONLY if a button was clicked
+    if st.session_state.update_camera:
         scene_settings["camera"] = dict(
             eye=st.session_state.cam_eye,
             up=st.session_state.cam_up
         )
-        # Immediately disable the flag so the slider won't trigger this again
         st.session_state.update_camera = False
 
-    # Pass the camera and layout unconditionally 
+    # 3. Apply the layout using EXACTLY the scene_settings dictionary
     fig.update_layout(
-        uirevision=st.session_state.view_rev, # <--- The magic link!
-        scene=dict(
-            xaxis=dict(range=[0, dimx], title='X (in)', backgroundcolor='white', gridcolor='#e2e8f0', showbackground=True),
-            yaxis=dict(range=[0, dimy], title='Y (in)', backgroundcolor='white', gridcolor='#e2e8f0', showbackground=True),
-            zaxis=dict(range=[-tmax, 0], title='Z (in)', backgroundcolor='white', gridcolor='#e2e8f0', showbackground=True),
-            aspectratio=dict(x=dimx/max_dim, y=dimy/max_dim, z=z_ratio),
-            camera=dict(
-                eye=st.session_state.cam_eye,
-                up=st.session_state.cam_up
-            )
-        ),
+        uirevision="constant_locked_view", 
+        scene=scene_settings,  # <--- CRITICAL FIX: This uses the dynamically built dictionary!
         margin=dict(l=0, r=0, b=0, t=0),
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
@@ -369,7 +354,7 @@ if st.session_state.run_finished:
     )
     
     st.plotly_chart(fig, use_container_width=True)
-
+    
     # --- Request #5: STL Export Generation ---
     st.subheader("💾 Export Geometry")
     
@@ -403,6 +388,7 @@ if st.session_state.run_finished:
         type="primary"
 
     )
+
 
 
 
