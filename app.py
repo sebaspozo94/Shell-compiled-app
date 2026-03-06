@@ -176,34 +176,54 @@ with col2:
                 st.session_state.run_finished = True
                 st.rerun()
 
-# --- 3. THE RESULTS EXPLORER ---
+# --- 3. THE RESULTS EXPLORER (3D VIEW) ---
 if st.session_state.run_finished:
     st.markdown("<br><hr>", unsafe_allow_html=True)
-    st.markdown('<div class="main-header" style="font-size: 1.8rem;">🕒 Results Explorer</div>', unsafe_allow_html=True)
+    st.markdown('<div class="main-header" style="font-size: 1.8rem;">🕒 3D Results Explorer</div>', unsafe_allow_html=True)
 
     steps = len(st.session_state.history)
     idx = st.slider("Iteration History", 0, steps - 1, steps - 1)
 
     Z_plot = st.session_state.history[idx]
-    fig_res, ax_res = plt.subplots(figsize=(10, 4))
+    
+    # 1. Create a 3D figure instead of 2D
+    fig_res = plt.figure(figsize=(10, 6))
     fig_res.patch.set_alpha(0.0) # Transparent background
-
-    ext = [st.session_state.X.min(), st.session_state.X.max(),
-           st.session_state.Y.min(), st.session_state.Y.max()]
-
-    im = ax_res.imshow(Z_plot, cmap='jet', vmin=0, vmax=tmax, extent=ext, origin='upper')
     
-    # Style the colorbar
-    cbar = plt.colorbar(im, ax=ax_res, label='Thickness (mm)')
+    # 2. Add a 3D subplot
+    ax_res = fig_res.add_subplot(111, projection='3d')
+    ax_res.patch.set_alpha(0.0)
+
+    # 3. Plot the 3D surface
+    # Note: If your X and Y aren't already 2D meshgrids, plot_surface might complain. 
+    # If it does, we can generate a meshgrid locally using np.meshgrid()
+    surf = ax_res.plot_surface(
+        st.session_state.X, 
+        st.session_state.Y, 
+        Z_plot, 
+        cmap='jet', 
+        vmin=0, 
+        vmax=tmax,
+        linewidth=0, 
+        antialiased=True
+    )
+    
+    # 4. Style the 3D axes
+    ax_res.set_zlim(0, tmax)
+    ax_res.set_title(f"3D Slab Thickness - Snapshot: {idx}", color="#0f172a", pad=20)
+    ax_res.set_xlabel("X (mm)", color="#475569", labelpad=10)
+    ax_res.set_ylabel("Y (mm)", color="#475569", labelpad=10)
+    ax_res.set_zlabel("Thickness (mm)", color="#475569", labelpad=10)
+    
+    # Clean up the background panes of the 3D plot to match your clean aesthetic
+    ax_res.xaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
+    ax_res.yaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
+    ax_res.zaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
+    ax_res.grid(False) # Turn off the default 3D grid for a cleaner look
+    
+    # 5. Style the colorbar
+    cbar = fig_res.colorbar(surf, ax=ax_res, shrink=0.5, aspect=10, pad=0.1)
+    cbar.set_label('Thickness (mm)', color="#0f172a")
     cbar.outline.set_visible(False)
-    
-    ax_res.set_title(f"Snapshot Index: {idx} of {steps-1}", color="#0f172a")
-    ax_res.set_xlabel("X (mm)", color="#475569"); ax_res.set_ylabel("Y (mm)", color="#475569")
-    
-    # Clean up spines
-    ax_res.spines['top'].set_visible(False)
-    ax_res.spines['right'].set_visible(False)
-    ax_res.spines['bottom'].set_color('#cbd5e1')
-    ax_res.spines['left'].set_color('#cbd5e1')
     
     st.pyplot(fig_res)
