@@ -166,6 +166,8 @@ with col2:
             live_plot_spot = st.empty()
             
             def update_live_view(current_it, current_ch, current_Z):
+                status_text.info(f"⚙️ Optimizing... Iteration: {current_it} | Max Change: {current_ch:.4f}")
+
                 fig_live, ax_live = plt.subplots(figsize=(10, 4))
                 fig_live.patch.set_alpha(0.0)
                 ax_live.axis('off') # Turn off axes for a cleaner live view
@@ -176,7 +178,6 @@ with col2:
                 
                 live_plot_spot.pyplot(fig_live)
                 plt.close(fig_live)
-                status_text.info(f"⚙️ Optimizing... Iteration: {current_it} | Max Change: {current_ch:.4f}")
 
             with st.spinner("Crunching the numbers..."):
                 X, Y, Thickness, history = logic.run_topology_optimization(
@@ -339,6 +340,7 @@ if st.session_state.run_finished:
         type="primary"
 
     )
+
 
 
 
