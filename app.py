@@ -247,34 +247,32 @@ if st.session_state.run_finished:
         st.session_state.z_scale_val = int(100*tmax/max(dimx, dimy))
     if "view_rev" not in st.session_state:
         st.session_state.view_rev = 0
-    if "update_camera" not in st.session_state:
-        st.session_state.update_camera = True
 
     # Create the buttons in a row
     view_cols = st.columns(5)
     if view_cols[0].button("⬇️ Bottom (XY)"):
         st.session_state.cam_eye = dict(x=0, y=0, z=-2.5)
         st.session_state.cam_up = dict(x=0, y=1, z=0) 
-        st.session_state.update_camera = True
+        st.session_state.view_rev += 1
         
     if view_cols[1].button("➡️ Front (XZ)"):
         st.session_state.cam_eye = dict(x=0, y=-2.5, z=0)
         st.session_state.cam_up = dict(x=0, y=0, z=1)
-        st.session_state.update_camera = True
+        st.session_state.view_rev += 1
         
     if view_cols[2].button("↗️ Side (YZ)"):
         st.session_state.cam_eye = dict(x=-2.5, y=0, z=0)
         st.session_state.cam_up = dict(x=0, y=0, z=1)
-        st.session_state.update_camera = True
+        st.session_state.view_rev += 1
         
     if view_cols[3].button("🔄 Reset View"):
         st.session_state.cam_eye = dict(x=1.2, y=-1.5, z=-0.8)
         st.session_state.cam_up = dict(x=0, y=0, z=1)
-        st.session_state.update_camera = True
+        st.session_state.view_rev += 1
         
     if view_cols[4].button("📏 True Scale (Z)"):
         st.session_state.z_scale_val = int(100*tmax/max(dimx, dimy))
-        st.session_state.update_camera = True
+        st.session_state.view_rev += 1
 
     # UI Controls
     col_slider, col_scale = st.columns([2, 1])
@@ -326,31 +324,23 @@ if st.session_state.run_finished:
 
     fig = go.Figure(data=[roof_surface, bottom_surface])
 
-    # 1. Build the base scene settings WITHOUT the camera
+    # 1. Calculate ratios
     max_dim = max(dimx, dimy)
     z_ratio = z_scale_pct / 100.0
 
-    scene_settings = dict(
-        xaxis=dict(range=[0, dimx], title='X (in)', backgroundcolor='white', gridcolor='#e2e8f0', showbackground=True),
-        yaxis=dict(range=[0, dimy], title='Y (in)', backgroundcolor='white', gridcolor='#e2e8f0', showbackground=True),
-        zaxis=dict(range=[-tmax, 0], title='Z (in)', backgroundcolor='white', gridcolor='#e2e8f0', showbackground=True),
-        aspectratio=dict(x=dimx/max_dim, y=dimy/max_dim, z=z_ratio)
-    )
-
-    # 2. Add the camera ONLY if a button triggered it
-    if st.session_state.update_camera:
-        scene_settings["camera"] = dict(
-            eye=st.session_state.cam_eye,
-            up=st.session_state.cam_up
-        )
-        # Increment the uirevision counter to FORCE Plotly to adopt the new camera!
-        st.session_state.view_rev += 1
-        st.session_state.update_camera = False
-
-    # 3. Apply the layout using EXACTLY the scene_settings dictionary and the dynamic view_rev
+    # 2. Apply layout ALWAYS including both uirevision and the camera
     fig.update_layout(
         uirevision=st.session_state.view_rev, 
-        scene=scene_settings,
+        scene=dict(
+            xaxis=dict(range=[0, dimx], title='X (in)', backgroundcolor='white', gridcolor='#e2e8f0', showbackground=True),
+            yaxis=dict(range=[0, dimy], title='Y (in)', backgroundcolor='white', gridcolor='#e2e8f0', showbackground=True),
+            zaxis=dict(range=[-tmax, 0], title='Z (in)', backgroundcolor='white', gridcolor='#e2e8f0', showbackground=True),
+            aspectratio=dict(x=dimx/max_dim, y=dimy/max_dim, z=z_ratio),
+            camera=dict(
+                eye=st.session_state.cam_eye,
+                up=st.session_state.cam_up
+            )
+        ),
         margin=dict(l=0, r=0, b=0, t=0),
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
@@ -392,6 +382,7 @@ if st.session_state.run_finished:
         type="primary"
 
     )
+
 
 
 
