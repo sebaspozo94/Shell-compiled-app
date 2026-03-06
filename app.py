@@ -85,6 +85,8 @@ with col1:
             st.pyplot(fig_pre)
             st.session_state.mesh_data = "Ready"
 
+# --- Inside app.py ---
+
 with col2:
     if st.button("🚀 Run Optimization", type="primary", use_container_width=True):
         if st.session_state.mesh_data is None:
@@ -93,13 +95,32 @@ with col2:
             total_area = dimx * dimy
             target_volume = (total_area * tmin) + (vol_frac * total_area * (tmax - tmin))
             
-            with st.spinner("Crunching the numbers... this may take a moment."):
-                # Call the compiled function here
+            # 1. Create empty spots for the live feed
+            status_text = st.empty()
+            live_plot_spot = st.empty()
+            
+            # 2. Define the callback function that Streamlit will run
+            def update_live_view(current_it, current_ch, current_Z):
+                status_text.info(f"⚙️ Optimizing... Iteration: {current_it} | Max Change: {current_ch:.4f}")
+                
+                fig_live, ax_live = plt.subplots(figsize=(10, 4))
+                ext = [0, dimx, 0, dimy] # Rough extent for live preview
+                im = ax_live.imshow(current_Z, cmap='jet', vmin=0, vmax=tmax, extent=ext, origin='upper')
+                plt.colorbar(im, ax=ax_live, label='Thickness (mm)')
+                
+                # Push to UI and immediately close to save memory
+                live_plot_spot.pyplot(fig_live)
+                plt.close(fig_live)
+
+            with st.spinner("Crunching the numbers..."):
+                # 3. Pass the function into the compiled logic
                 X, Y, Thickness, history = logic.run_topology_optimization(
                     dimx, dimy, E, nu, rho, SW, BCMatrix, w_u, 
-                    int(nelx), int(nely), target_volume, rmin, tmin, tmax, int(itmax)
+                    int(nelx), int(nely), target_volume, rmin, tmin, tmax, int(itmax),
+                    progress_callback=update_live_view  # <-- PASS IT HERE
                 )
                 
+                status_text.success("✅ Optimization Complete!")
                 st.session_state.history = history
                 st.session_state.X = X
                 st.session_state.Y = Y
