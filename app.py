@@ -347,9 +347,9 @@ if st.session_state.run_finished:
         scene_settings["camera"] = dict(
             eye=st.session_state.cam_eye,
             up=st.session_state.cam_up
-        )
-        # Immediately turn the flag off so the next slider move doesn't reset the view!
-        st.session_state.update_camera = False
+            )
+            # Immediately turn the flag off so the next slider move doesn't reset the view!
+            st.session_state.update_camera = False
 
         margin=dict(l=0, r=0, b=0, t=0),
         paper_bgcolor='rgba(0,0,0,0)',
@@ -392,6 +392,7 @@ if st.session_state.run_finished:
         type="primary"
 
     )
+
 
 
 
