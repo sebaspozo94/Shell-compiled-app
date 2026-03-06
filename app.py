@@ -141,9 +141,11 @@ with col_map:
     
     # Format the plot
     fig2d.update_layout(
-        xaxis=dict(title="X (in)", range=[-10, dimx+10], scaleanchor="y", scaleratio=1, gridcolor='#e2e8f0'),
-        yaxis=dict(title="Y (in)", range=[-10, dimy+10], gridcolor='#e2e8f0'),
-        height=450, margin=dict(l=0, r=0, t=10, b=0), showlegend=False, clickmode='event+select',
+        xaxis=dict(title="X (in)", range=[-10, dimx+10], constrain="domain", gridcolor='#e2e8f0'),
+        yaxis=dict(title="Y (in)", range=[-10, dimy+10], scaleanchor="x", scaleratio=1, constrain="domain", gridcolor='#e2e8f0'),
+        margin=dict(l=10, r=10, t=20, b=10), 
+        showlegend=False, 
+        clickmode='event+select',
         plot_bgcolor='white'
     )
     
@@ -342,3 +344,4 @@ if st.session_state.run_finished:
         label="📥 Download as .STL File", data=stl_data,
         file_name=f"Optimized_Slab_Iter{idx}.stl", mime="model/stl", type="primary"
     )
+
