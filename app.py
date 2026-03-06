@@ -245,8 +245,8 @@ if st.session_state.run_finished:
         st.session_state.cam_up = dict(x=0, y=0, z=1) # Default Z is up
     if "z_scale_val" not in st.session_state:
         st.session_state.z_scale_val = 100*tmax/max(dimx, dimy)    
-    if "view_revision" not in st.session_state: # <--- NEW
-        st.session_state.view_revision = 0
+    if "update_camera" not in st.session_state: # <--- NEW FLAG
+        st.session_state.update_camera = True
         
     # Create the buttons in a row
     view_cols = st.columns(5)
@@ -254,27 +254,27 @@ if st.session_state.run_finished:
     if view_cols[0].button("⬇️ Bottom (XY)"):
         st.session_state.cam_eye = dict(x=0, y=0, z=-2.5)
         st.session_state.cam_up = dict(x=0, y=1, z=0) 
-        st.session_state.view_revision += 1 # <--- NEW
+        st.session_state.update_camera = True # <--- NEW
         
     if view_cols[1].button("➡️ Front (XZ)"):
         st.session_state.cam_eye = dict(x=0, y=-2.5, z=0)
         st.session_state.cam_up = dict(x=0, y=0, z=1)
-        st.session_state.view_revision += 1 # <--- NEW
+        st.session_state.update_camera = True # <--- NEW
         
     if view_cols[2].button("↗️ Side (YZ)"):
         st.session_state.cam_eye = dict(x=-2.5, y=0, z=0)
         st.session_state.cam_up = dict(x=0, y=0, z=1)
-        st.session_state.view_revision += 1 # <--- NEW
+        st.session_state.update_camera = True # <--- NEW
         
     if view_cols[3].button("🔄 Reset View"):
         st.session_state.cam_eye = dict(x=1.2, y=-1.5, z=-0.8)
         st.session_state.cam_up = dict(x=0, y=0, z=1)
-        st.session_state.view_revision += 1 # <--- NEW
+        st.session_state.update_camera = True # <--- NEW
         
     if view_cols[4].button("📏 True Scale (Z)"):
         # Assuming 100% represents the true physical 1:1 aspect ratio
         st.session_state.z_scale_val = 100*tmax/max(dimx, dimy) 
-        st.session_state.view_revision += 1 # <--- NEW
+        st.session_state.update_camera = True # <--- NEW
 
     # UI Controls
     col_slider, col_scale = st.columns([2, 1])
@@ -342,13 +342,15 @@ if st.session_state.run_finished:
             yaxis=dict(range=[0, dimy], title='Y (in)', backgroundcolor='white', gridcolor='#e2e8f0', showbackground=True),
             zaxis=dict(range=[-tmax, 0], title='Z (in)', backgroundcolor='white', gridcolor='#e2e8f0', showbackground=True),
             aspectratio=dict(x=dimx/max_dim, y=dimy/max_dim, z=z_ratio),
-            
-            # Apply the camera state from the buttons
-            camera=dict(
-                eye=st.session_state.cam_eye,
-                up=st.session_state.cam_up
-            )
         ),
+        if st.session_state.update_camera:
+        scene_settings["camera"] = dict(
+            eye=st.session_state.cam_eye,
+            up=st.session_state.cam_up
+        )
+        # Immediately turn the flag off so the next slider move doesn't reset the view!
+        st.session_state.update_camera = False
+
         margin=dict(l=0, r=0, b=0, t=0),
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
@@ -390,6 +392,7 @@ if st.session_state.run_finished:
         type="primary"
 
     )
+
 
 
 
