@@ -129,7 +129,7 @@ with col1:
             ax_pre.set_xlim(-10, dimx + 10); ax_pre.set_ylim(-10, dimy + 10)
             ax_pre.set_aspect('equal')
             ax_pre.set_title(f"Geometry Preview: {dimx}x{dimy} Domain", color="#0f172a")
-            ax_pre.set_xlabel("X (mm)", color="#475569"); ax_pre.set_ylabel("Y (mm)", color="#475569")
+            ax_pre.set_xlabel("X (in)", color="#475569"); ax_pre.set_ylabel("Y (in)", color="#475569")
             ax_pre.grid(True, linestyle=':', alpha=0.3)
             # Assuming nx and ny are your number of elements in X and Y
             ax_pre.set_xticks(np.linspace(0, dimx, nelx + 1))
@@ -172,12 +172,12 @@ with col2:
                 
                 ext = [0, dimx, 0, dimy] 
                 im = ax_live.imshow(current_Z, cmap=custom_cmap, vmin=0, vmax=tmax, extent=ext, origin='upper')
-                plt.colorbar(im, ax=ax_live, label='Thickness (mm)')
+                plt.colorbar(im, ax=ax_live, label='Thickness (in)')
                 
                 live_plot_spot.pyplot(fig_live)
                 plt.close(fig_live)
 
-                status_text.info(f"⚙️ Optimizing... Iteration: {current_it} | Max Change: {current_ch:.4f}")
+                status_text.info(f"⚙️ Optimizing... Iteration: {current_it} | Max Displacement: {current_ch:.4f} in")
 
             with st.spinner("Crunching the numbers..."):
                 X, Y, Thickness, history = logic.run_topology_optimization(
@@ -206,7 +206,7 @@ if st.session_state.run_finished:
     if "cam_up" not in st.session_state:
         st.session_state.cam_up = dict(x=0, y=0, z=1) # Default Z is up
     if "z_scale_val" not in st.session_state:
-        st.session_state.z_scale_val = 15    
+        st.session_state.z_scale_val = 100*tmax/max(dimx, dimy)    
     
     # Create the buttons in a row
     view_cols = st.columns(5)
@@ -275,7 +275,7 @@ if st.session_state.run_finished:
         colorscale=custom_colorscale, 
         cmin=-tmax, 
         cmax=0,
-        colorbar=dict(title='Thickness (mm)', outlinewidth=0, tickfont=dict(color='#475569'))
+        colorbar=dict(title='Thickness (in)', outlinewidth=0, tickfont=dict(color='#475569'))
     )
 
     # Add BOTH surfaces to the figure
@@ -287,9 +287,9 @@ if st.session_state.run_finished:
 
     fig.update_layout(
         scene=dict(
-            xaxis=dict(range=[0, dimx], title='X (mm)', backgroundcolor='white', gridcolor='#e2e8f0', showbackground=True),
-            yaxis=dict(range=[0, dimy], title='Y (mm)', backgroundcolor='white', gridcolor='#e2e8f0', showbackground=True),
-            zaxis=dict(range=[-tmax, 0], title='Z (mm)', backgroundcolor='white', gridcolor='#e2e8f0', showbackground=True),
+            xaxis=dict(range=[0, dimx], title='X (in)', backgroundcolor='white', gridcolor='#e2e8f0', showbackground=True),
+            yaxis=dict(range=[0, dimy], title='Y (in)', backgroundcolor='white', gridcolor='#e2e8f0', showbackground=True),
+            zaxis=dict(range=[-tmax, 0], title='Z (in)', backgroundcolor='white', gridcolor='#e2e8f0', showbackground=True),
             aspectratio=dict(x=dimx/max_dim, y=dimy/max_dim, z=z_ratio),
 
             # Apply the camera state from the buttons
@@ -340,6 +340,7 @@ if st.session_state.run_finished:
         type="primary"
 
     )
+
 
 
 
