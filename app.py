@@ -127,6 +127,14 @@ with col1:
             ax_pre.set_title(f"Geometry Preview: {dimx}x{dimy} Domain", color="#0f172a")
             ax_pre.set_xlabel("X (mm)", color="#475569"); ax_pre.set_ylabel("Y (mm)", color="#475569")
             ax_pre.grid(True, linestyle=':', alpha=0.3)
+            # Assuming nx and ny are your number of elements in X and Y
+            ax_pre.set_xticks(np.linspace(0, dimx, nelx + 1))
+            ax_pre.set_yticks(np.linspace(0, dimy, nely + 1))
+            ax_pre.grid(color='#94a3b8', linestyle='-', linewidth=0.5, alpha=0.5)
+            
+            # Optional: Hide the tick labels so it doesn't look cluttered, but keep the grid
+            ax_pre.set_xticklabels([])
+            ax_pre.set_yticklabels([])
             
             # Hide top and right spines for a cleaner look
             ax_pre.spines['top'].set_visible(False)
@@ -300,5 +308,6 @@ if st.session_state.run_finished:
         type="primary"
 
     )
+
 
 
