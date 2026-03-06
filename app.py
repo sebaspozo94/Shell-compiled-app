@@ -224,7 +224,7 @@ if st.session_state.run_finished:
         st.session_state.cam_up = dict(x=0, y=0, z=1)
     if view_cols[4].button("📏 True Scale (Z)"):
         # Assuming 100% represents the true physical 1:1 aspect ratio
-        st.session_state.z_scale_val = tmax/max(dimx, dimy) 
+        st.session_state.z_scale_val = 100*tmax/max(dimx, dimy) 
 
     # UI Controls
     col_slider, col_scale = st.columns([2, 1])
@@ -232,7 +232,7 @@ if st.session_state.run_finished:
         idx = st.slider("Iteration History", 0, steps - 1, steps - 1)
     with col_scale:
         # Crucial: tie the slider to the session_state key so the button can update it!
-        z_scale_pct = st.slider("Visual Z-Scale (%)", 1, 100, key="z_scale_val")
+        z_scale_pct = st.slider("Visual Z-Scale (%)", 0, 100, key="z_scale_val")
     Z_plot = st.session_state.history[idx]
     
     # Node to Element Center Fix (from earlier)
@@ -340,6 +340,7 @@ if st.session_state.run_finished:
         type="primary"
 
     )
+
 
 
 
