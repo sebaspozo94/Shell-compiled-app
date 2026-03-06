@@ -186,13 +186,18 @@ if st.session_state.run_finished:
 
     Z_plot = st.session_state.history[idx]
     
-    # --- THE FIX: Convert 1D coordinates to 2D meshgrids ---
-    # We use np.meshgrid to make X and Y match the 2D shape of Z_plot
-    # If X and Y are already 2D from your logic.so but just mismatched, 
-    # we flatten them to 1D first using np.unique() to be safe.
     x_1d = np.unique(st.session_state.X)
     y_1d = np.unique(st.session_state.Y)
+
+    # If the coordinates are 1 size larger than the thickness matrix, 
+    # we calculate the midpoints to shift from Nodes to Elements.
+    if len(x_1d) == Z_plot.shape[1] + 1:
+        x_1d = (x_1d[:-1] + x_1d[1:]) / 2.0
+    if len(y_1d) == Z_plot.shape[0] + 1:
+        y_1d = (y_1d[:-1] + y_1d[1:]) / 2.0
+
     X_mesh, Y_mesh = np.meshgrid(x_1d, y_1d)
+    
     
     # 1. Create a 3D figure
     fig_res = plt.figure(figsize=(10, 6))
