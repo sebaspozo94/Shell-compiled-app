@@ -83,7 +83,11 @@ with st.sidebar:
     w_u = st.number_input("Distributed Load (w_u)", value=0.2778)
     
     st.subheader("Boundary Conditions")
-    
+    # --- NEW: Clear explanation of the geometry logic ---
+    st.info("""
+    **How to define supports:**
+    Each row represents a boundary condition zone. **X** and **Y** define the center coordinate of a rectangle with dimensions **Width** (dx) and **Height** (dy). All nodes that fall inside this rectangular area will have the boundary condition specified in the **Type** column.
+    """)
     # 1. Create a Pandas DataFrame with clear column names and text instead of 0/1
     default_bc = pd.DataFrame(
         [
@@ -369,6 +373,7 @@ if st.session_state.run_finished:
         type="primary"
 
     )
+
 
 
 
