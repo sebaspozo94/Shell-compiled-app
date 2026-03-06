@@ -3,6 +3,10 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import numpy as np
 import logic  # This imports your compiled logic.so file
+import plotly.graph_objects as go
+import io
+from stl import mesh # from the numpy-stl package
+from scipy.spatial import Delaunay
 
 st.set_page_config(page_title="Shell Topology Opt", layout="wide")
 
@@ -176,65 +180,97 @@ with col2:
                 st.session_state.run_finished = True
                 st.rerun()
 
-# --- 3. THE RESULTS EXPLORER (3D VIEW) ---
+# --- 3. THE RESULTS EXPLORER (INTERACTIVE 3D) ---
 if st.session_state.run_finished:
     st.markdown("<br><hr>", unsafe_allow_html=True)
-    st.markdown('<div class="main-header" style="font-size: 1.8rem;">🕒 3D Results Explorer</div>', unsafe_allow_html=True)
+    st.markdown('<div class="main-header" style="font-size: 1.8rem;">🕒 Interactive 3D Results</div>', unsafe_allow_html=True)
 
     steps = len(st.session_state.history)
-    idx = st.slider("Iteration History", 0, steps - 1, steps - 1)
+    
+    # UI Controls for the 3D Viewer
+    col_slider, col_scale = st.columns([2, 1])
+    with col_slider:
+        idx = st.slider("Iteration History", 0, steps - 1, steps - 1)
+    with col_scale:
+        # Request #2: Z-Scale Slider (0% to 100% of max domain dimension)
+        z_scale_pct = st.slider("Visual Z-Scale (%)", 1, 100, 15)
 
     Z_plot = st.session_state.history[idx]
     
+    # Node to Element Center Fix (from earlier)
     x_1d = np.unique(st.session_state.X)
     y_1d = np.unique(st.session_state.Y)
-
-    # If the coordinates are 1 size larger than the thickness matrix, 
-    # we calculate the midpoints to shift from Nodes to Elements.
     if len(x_1d) == Z_plot.shape[1] + 1:
         x_1d = (x_1d[:-1] + x_1d[1:]) / 2.0
     if len(y_1d) == Z_plot.shape[0] + 1:
         y_1d = (y_1d[:-1] + y_1d[1:]) / 2.0
-
     X_mesh, Y_mesh = np.meshgrid(x_1d, y_1d)
-    
-    
-    # 1. Create a 3D figure
-    fig_res = plt.figure(figsize=(10, 6))
-    fig_res.patch.set_alpha(0.0) 
-    
-    # 2. Add a 3D subplot
-    ax_res = fig_res.add_subplot(111, projection='3d')
-    ax_res.patch.set_alpha(0.0)
 
-    # 3. Plot the 3D surface using the new X_mesh and Y_mesh
-    surf = ax_res.plot_surface(
-        X_mesh, 
-        Y_mesh, 
-        Z_plot, 
-        cmap='jet', 
-        vmin=0, 
-        vmax=tmax,
-        linewidth=0, 
-        antialiased=True
+    # Request #3: Make the solid hang from the base (Z=0 down to -Thickness)
+    Z_plot_neg = -Z_plot 
+
+    # Request #4 & #1: Interactive Plotly Figure with Portfolio Colors
+    # 'Blues_r' gives a deep blue for thick areas and light slate/white for thin areas
+    fig = go.Figure(data=[go.Surface(
+        z=Z_plot_neg, 
+        x=X_mesh, 
+        y=Y_mesh, 
+        colorscale='Blues_r', 
+        cmin=-tmax, 
+        cmax=0,
+        colorbar=dict(title='Thickness (mm)', outlinewidth=0, tickfont=dict(color='#475569'))
+    )])
+
+    # Request #2: Equal Axis Condition
+    max_dim = max(dimx, dimy)
+    z_ratio = z_scale_pct / 100.0
+
+    fig.update_layout(
+        scene=dict(
+            xaxis=dict(range=[0, dimx], title='X (mm)', backgroundcolor='white', gridcolor='#e2e8f0', showbackground=True),
+            yaxis=dict(range=[0, dimy], title='Y (mm)', backgroundcolor='white', gridcolor='#e2e8f0', showbackground=True),
+            zaxis=dict(range=[-tmax, 0], title='Z (mm)', backgroundcolor='white', gridcolor='#e2e8f0', showbackground=True),
+            # This perfectly locks X and Y to their physical proportions!
+            aspectratio=dict(x=dimx/max_dim, y=dimy/max_dim, z=z_ratio),
+            camera=dict(eye=dict(x=1.5, y=-1.5, z=1.2)) # Default viewing angle
+        ),
+        margin=dict(l=0, r=0, b=0, t=0),
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        height=600
     )
     
-    # 4. Style the 3D axes
-    ax_res.set_zlim(0, tmax)
-    ax_res.set_title(f"3D Slab Thickness - Snapshot: {idx}", color="#0f172a", pad=20)
-    ax_res.set_xlabel("X (mm)", color="#475569", labelpad=10)
-    ax_res.set_ylabel("Y (mm)", color="#475569", labelpad=10)
-    ax_res.set_zlabel("Thickness (mm)", color="#475569", labelpad=10)
+    st.plotly_chart(fig, use_container_width=True)
+
+    # --- Request #5: STL Export Generation ---
+    st.subheader("💾 Export Geometry")
     
-    # Clean up the background panes
-    ax_res.xaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
-    ax_res.yaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
-    ax_res.zaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
-    ax_res.grid(False) 
+    def generate_stl(X, Y, Z):
+        # Flatten the arrays to create a point cloud
+        points2D = np.column_stack([X.flatten(), Y.flatten()])
+        Z_flat = Z.flatten()
+        
+        # Triangulate the 2D grid to create faces
+        tri = Delaunay(points2D)
+        
+        # Create the 3D mesh
+        slab_mesh = mesh.Mesh(np.zeros(tri.simplices.shape[0], dtype=mesh.Mesh.dtype))
+        for i, f in enumerate(tri.simplices):
+            for j in range(3):
+                slab_mesh.vectors[i][j] = [points2D[f[j], 0], points2D[f[j], 1], Z_flat[f[j]]]
+                
+        # Save to an in-memory bytes buffer
+        buf = io.BytesIO()
+        slab_mesh.save('slab.stl', fh=buf, mode=mesh.Mode.BINARY)
+        return buf.getvalue()
+
+    # Generate the STL using the inverted Z data
+    stl_data = generate_stl(X_mesh, Y_mesh, Z_plot_neg)
     
-    # 5. Style the colorbar
-    cbar = fig_res.colorbar(surf, ax=ax_res, shrink=0.5, aspect=10, pad=0.1)
-    cbar.set_label('Thickness (mm)', color="#0f172a")
-    cbar.outline.set_visible(False)
-    
-    st.pyplot(fig_res)
+    st.download_button(
+        label="📥 Download as .STL File",
+        data=stl_data,
+        file_name=f"Optimized_Slab_Iter{idx}.stl",
+        mime="model/stl",
+        type="primary"
+    )
