@@ -186,20 +186,26 @@ if st.session_state.run_finished:
 
     Z_plot = st.session_state.history[idx]
     
-    # 1. Create a 3D figure instead of 2D
+    # --- THE FIX: Convert 1D coordinates to 2D meshgrids ---
+    # We use np.meshgrid to make X and Y match the 2D shape of Z_plot
+    # If X and Y are already 2D from your logic.so but just mismatched, 
+    # we flatten them to 1D first using np.unique() to be safe.
+    x_1d = np.unique(st.session_state.X)
+    y_1d = np.unique(st.session_state.Y)
+    X_mesh, Y_mesh = np.meshgrid(x_1d, y_1d)
+    
+    # 1. Create a 3D figure
     fig_res = plt.figure(figsize=(10, 6))
-    fig_res.patch.set_alpha(0.0) # Transparent background
+    fig_res.patch.set_alpha(0.0) 
     
     # 2. Add a 3D subplot
     ax_res = fig_res.add_subplot(111, projection='3d')
     ax_res.patch.set_alpha(0.0)
 
-    # 3. Plot the 3D surface
-    # Note: If your X and Y aren't already 2D meshgrids, plot_surface might complain. 
-    # If it does, we can generate a meshgrid locally using np.meshgrid()
+    # 3. Plot the 3D surface using the new X_mesh and Y_mesh
     surf = ax_res.plot_surface(
-        st.session_state.X, 
-        st.session_state.Y, 
+        X_mesh, 
+        Y_mesh, 
         Z_plot, 
         cmap='jet', 
         vmin=0, 
@@ -215,11 +221,11 @@ if st.session_state.run_finished:
     ax_res.set_ylabel("Y (mm)", color="#475569", labelpad=10)
     ax_res.set_zlabel("Thickness (mm)", color="#475569", labelpad=10)
     
-    # Clean up the background panes of the 3D plot to match your clean aesthetic
+    # Clean up the background panes
     ax_res.xaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
     ax_res.yaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
     ax_res.zaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
-    ax_res.grid(False) # Turn off the default 3D grid for a cleaner look
+    ax_res.grid(False) 
     
     # 5. Style the colorbar
     cbar = fig_res.colorbar(surf, ax=ax_res, shrink=0.5, aspect=10, pad=0.1)
