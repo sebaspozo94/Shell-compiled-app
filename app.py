@@ -262,7 +262,7 @@ if st.session_state.run_finished:
                 
         # Save to an in-memory bytes buffer
         buf = io.BytesIO()
-        slab_mesh.save('slab.stl', fh=buf, mode=mesh.Mode.BINARY)
+        slab_mesh.save('slab.stl', fh=buf)
         return buf.getvalue()
 
     # Generate the STL using the inverted Z data
@@ -276,3 +276,4 @@ if st.session_state.run_finished:
         type="primary"
 
     )
+
