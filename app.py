@@ -92,54 +92,39 @@ st.markdown('<div class="section-header">🔍 Interactive Support Setup</div>', 
 
 # 1. Dual Toggle Row
 col_t1, col_t2 = st.columns(2)
-add_mode = col_t1.toggle("🖱️ Click to ADD Support", value=False)
-del_mode = col_t2.toggle("🗑️ Click to DELETE Support", value=False)
+add_mode = col_t1.toggle("🖱️ Click to ADD Support", value=False, key="add_t")
+del_mode = col_t2.toggle("🗑️ Click to DELETE Support", value=False, key="del_t")
 
+# Mutual exclusion logic
 if add_mode and del_mode:
-    st.warning("Please select only one mode (Add or Delete) at a time.")
+    st.warning("Switching to Delete mode...")
 
 fig2d = go.Figure()
-fig2d.add_shape(type="rect", x0=0, y0=0, x1=dimx, y1=dimy, line=dict(color="#0f172a", width=2, dash="dash"), fillcolor="rgba(0,0,0,0)")
+fig2d.add_shape(type="rect", x0=0, y0=0, x1=dimx, y1=dimy, line=dict(color="#0f172a", width=2, dash="dash"))
 
-# 2. Draw supports with Identifiers (Labels)
 for i, row in st.session_state.bc_df.iterrows():
     hx, hy = row['Width'] / 2.0, row['Height'] / 2.0
     color = '#2563eb' if row['Type'] == "Pinned" else '#0f172a' 
-    
-    # The Shape
-    fig2d.add_shape(type="rect", x0=row['X (in)'] - hx, y0=row['Y (in)'] - hy, x1=row['X (in)'] + hx, y1=row['Y (in)'] + hy, 
-                   line=dict(color=color, width=2), fillcolor=color, opacity=0.7)
-    
-    # The Identifier Label (S1, S2...)
-    fig2d.add_annotation(x=row['X (in)'], y=row['Y (in)'], text=f"S{i+1}", showarrow=False, font=dict(color="white", size=10))
+    fig2d.add_shape(type="rect", x0=row['X (in)']-hx, y0=row['Y (in)']-hy, x1=row['X (in)']+hx, y1=row['Y (in)']+hy, fillcolor=color, opacity=0.7)
+    fig2d.add_annotation(x=row['X (in)'], y=row['Y (in)'], text=f"S{i+1}", showarrow=False, font=dict(color="white"))
 
-# Clickable Grid for Adding
 if add_mode:
     grid_x, grid_y = np.meshgrid(np.arange(0, dimx + 12, 12), np.arange(0, dimy + 12, 12))
-    fig2d.add_trace(go.Scatter(x=grid_x.flatten(), y=grid_y.flatten(), mode='markers', marker=dict(size=6, color='rgba(100, 100, 100, 0.2)'), hoverinfo='none'))
+    fig2d.add_trace(go.Scatter(x=grid_x.flatten(), y=grid_y.flatten(), mode='markers', marker=dict(size=6, color='rgba(0,0,0,0.1)'), hoverinfo='none'))
 
-fig2d.update_layout(
-    xaxis=dict(title="X (in)", range=[-10, dimx+10], constrain="domain", gridcolor='#f1f5f9'),
-    yaxis=dict(title="Y (in)", range=[-10, dimy+10], scaleanchor="x", scaleratio=1, constrain="domain", gridcolor='#f1f5f9'),
-    margin=dict(l=0, r=0, t=20, b=0), height=450, showlegend=False, clickmode='event+select', plot_bgcolor='white'
-)
-
+fig2d.update_layout(xaxis=dict(range=[-10, dimx+10]), yaxis=dict(range=[-10, dimy+10], scaleanchor="x"), height=450, margin=dict(l=0, r=0, t=0, b=0), plot_bgcolor='white')
 event = st.plotly_chart(fig2d, on_select="rerun", selection_mode="points", key="bc_map", use_container_width=True)
 
-# 3. Handle Add/Delete Logic
+# HANDLE ADD/DELETE LOGIC
 if event and event.get("selection") and len(event["selection"]["points"]) > 0:
     clicked_pt = event["selection"]["points"][0]
     cx, cy = clicked_pt["x"], clicked_pt["y"]
     
-    if add_mode:
-        duplicate = st.session_state.bc_df[(st.session_state.bc_df['X (in)'] == cx) & (st.session_state.bc_df['Y (in)'] == cy)]
-        if duplicate.empty:
-            new_row = pd.DataFrame([[float(cx), float(cy), 4.0, 4.0, "Pinned"]], columns=["X (in)", "Y (in)", "Width", "Height", "Type"])
-            st.session_state.bc_df = pd.concat([st.session_state.bc_df, new_row], ignore_index=True)
-            st.rerun()
-    
+    if add_mode and not del_mode:
+        new_row = pd.DataFrame([[float(cx), float(cy), 4.0, 4.0, "Pinned"]], columns=["X (in)", "Y (in)", "Width", "Height", "Type"])
+        st.session_state.bc_df = pd.concat([st.session_state.bc_df, new_row], ignore_index=True)
+        st.rerun()
     elif del_mode:
-        # Delete if the click is within the bounds of an existing support
         for i, row in st.session_state.bc_df.iterrows():
             hx, hy = row['Width']/2, row['Height']/2
             if (row['X (in)']-hx <= cx <= row['X (in)']+hx) and (row['Y (in)']-hy <= cy <= row['Y (in)']+hy):
@@ -199,6 +184,10 @@ with col_btn_mid:
                 fig_live.patch.set_alpha(0.0)
                 ax_live.axis('off') 
                 im = ax_live.imshow(current_Z, cmap=custom_cmap, vmin=0, vmax=tmax, extent=[0, dimx, 0, dimy], origin='upper')
+                # Draw BCs on Live Plot
+                for i, row in st.session_state.bc_df.iterrows():
+                    rect = patches.Rectangle((row['X (in)']-row['Width']/2, row['Y (in)']-row['Height']/2), row['Width'], row['Height'], linewidth=1, edgecolor='r', facecolor='none')
+                    ax_live.add_patch(rect)
                 live_plot_spot.pyplot(fig_live)
                 plt.close(fig_live)
                 status_text.info(f"⚙️ Optimizing... Iteration: {current_it}")
@@ -295,5 +284,6 @@ if st.session_state.run_finished:
 
     stl_data = generate_stl(X_mesh, Y_mesh, Z_plot_neg)
     st.download_button(label="📥 Download as .STL File", data=stl_data, file_name=f"Optimized_Slab_Iter{idx}.stl", mime="model/stl", type="primary")
+
 
 
