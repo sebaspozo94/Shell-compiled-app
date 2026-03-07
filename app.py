@@ -48,9 +48,12 @@ if "bc_df" not in st.session_state:
         columns=["X (in)", "Y (in)", "Width", "Height", "Type"]
     )
 
-# NEW: We need a snapshot of the BCs used during the actual run so the results don't drift if inputs change
 if "run_bc_df" not in st.session_state:
     st.session_state.run_bc_df = st.session_state.bc_df.copy()
+    
+# NEW: Session state for the label toggle
+if "show_labels" not in st.session_state:
+    st.session_state.show_labels = False
 
 # --- SIDEBAR (Materials & Loads) ---
 with st.sidebar:
@@ -118,11 +121,14 @@ with col_bc:
 
     for i, row in st.session_state.bc_df.iterrows():
         hx, hy = row['Width'] / 2.0, row['Height'] / 2.0
-        color = 'red'  # Changed to red across all UI
+        color = 'red' 
         fig2d.add_shape(type="rect", x0=row['X (in)']-hx, y0=row['Y (in)']-hy, x1=row['X (in)']+hx, y1=row['Y (in)']+hy, 
                         line=dict(color=color, width=2), fillcolor=color, opacity=0.6)
-        fig2d.add_annotation(x=row['X (in)'], y=row['Y (in)'], text=f"S{i+1}", showarrow=False, 
-                             font=dict(color="black", size=11, family="Arial Black"))
+        
+        # Only draw the text if the checkbox is active
+        if st.session_state.show_labels:
+            fig2d.add_annotation(x=row['X (in)'], y=row['Y (in)'], text=f"S{i+1}", showarrow=False, 
+                                 font=dict(color="black", size=11, family="Arial Black"))
 
     grid_spacing = 12
     grid_x, grid_y = np.meshgrid(np.arange(0, dimx + 1, grid_spacing), np.arange(0, dimy + 1, grid_spacing))
@@ -168,6 +174,9 @@ with col_bc:
             if to_drop:
                 st.session_state.bc_df = st.session_state.bc_df.drop(to_drop).reset_index(drop=True)
                 st.rerun()
+
+    # NEW: Toggle placed exactly right before the coordinates table
+    st.checkbox("🏷️ Show Support Identifiers", key="show_labels")
                 
     with st.expander("📋 View/Edit Support Coordinates", expanded=False):
         display_df = st.session_state.bc_df.copy()
@@ -195,7 +204,6 @@ with col_run:
     live_plot_spot = st.empty()
     status_text = st.empty()
 
-    # --- FUNCTION 1: FAST MATPLOTLIB FOR ANIMATION ---
     def plot_2d_thickness_mpl(Z_matrix):
         x_range = dimx + 20
         y_range = dimy + 20
@@ -214,7 +222,6 @@ with col_run:
                                    facecolor='none', linestyle='--')
         ax.add_patch(border)
         
-        # NOTE: Drawing from run_bc_df (the snapshot)
         for i, row in st.session_state.run_bc_df.iterrows():
             hx, hy = row['Width'] / 2.0, row['Height'] / 2.0
             x_min = row['X (in)'] - hx
@@ -223,8 +230,11 @@ with col_run:
             support = patches.Rectangle((x_min, y_min), row['Width'], row['Height'], 
                                         linewidth=1, edgecolor='darkred', facecolor='red', alpha=0.5)
             ax.add_patch(support)
-            ax.text(row['X (in)'], row['Y (in)'], f"S{i+1}", color='black', 
-                    ha='center', va='center', fontweight='bold', fontsize=10)
+            
+            # Only draw the text if the checkbox is active
+            if st.session_state.show_labels:
+                ax.text(row['X (in)'], row['Y (in)'], f"S{i+1}", color='black', 
+                        ha='center', va='center', fontweight='bold', fontsize=10)
             
         ax.set_xlim(-10, dimx + 10)
         ax.set_ylim(-10, dimy + 10)
@@ -235,7 +245,6 @@ with col_run:
         buf.seek(0)
         return buf
 
-    # --- FUNCTION 2: PERFECTLY SIZED PLOTLY FOR FINAL RESULT ---
     def plot_2d_thickness_plotly(Z_matrix):
         fig = go.Figure()
         
@@ -251,7 +260,6 @@ with col_run:
         fig.add_shape(type="rect", x0=0, y0=0, x1=dimx, y1=dimy, 
                       line=dict(color="#0f172a", width=2, dash="dash"), fillcolor="rgba(0,0,0,0)")
         
-        # NOTE: Drawing from run_bc_df (the snapshot)
         for i, row in st.session_state.run_bc_df.iterrows():
             hx, hy = row['Width'] / 2.0, row['Height'] / 2.0
             x_min, x_max = row['X (in)'] - hx, row['X (in)'] + hx
@@ -259,8 +267,11 @@ with col_run:
             
             fig.add_shape(type="rect", x0=x_min, y0=y_min, x1=x_max, y1=y_max, 
                           line=dict(color='red', width=1), fillcolor='rgba(255,0,0,0.4)')
-            fig.add_annotation(x=row['X (in)'], y=row['Y (in)'], text=f"S{i+1}", showarrow=False, 
-                               font=dict(color="black", size=11, family="Arial Black"))
+            
+            # Only draw the text if the checkbox is active
+            if st.session_state.show_labels:
+                fig.add_annotation(x=row['X (in)'], y=row['Y (in)'], text=f"S{i+1}", showarrow=False, 
+                                   font=dict(color="black", size=11, family="Arial Black"))
             
         fig.update_layout(
             autosize=True,
@@ -274,7 +285,6 @@ with col_run:
         if len(BCMatrix) == 0:
             st.error("Please add at least one support!")
         else:
-            # 1. Take a snapshot of the BC setup for this run!
             st.session_state.run_bc_df = st.session_state.bc_df.copy()
             
             total_area = dimx * dimy
@@ -355,7 +365,6 @@ if st.session_state.run_finished:
 
     support_depth = -tmax * 1.2
     
-    # NOTE: Drawing from run_bc_df (the snapshot)
     for i, row in st.session_state.run_bc_df.iterrows():
         hx, hy = row['Width'] / 2.0, row['Height'] / 2.0
         x_min, x_max = row['X (in)'] - hx, row['X (in)'] + hx
@@ -375,16 +384,18 @@ if st.session_state.run_finished:
             showlegend=False
         ))
 
-    fig.add_trace(go.Scatter3d(
-        x=st.session_state.run_bc_df['X (in)'],
-        y=st.session_state.run_bc_df['Y (in)'],
-        z=[tmax * 0.1] * len(st.session_state.run_bc_df),
-        mode='text',
-        text=[f"S{i+1}" for i in range(len(st.session_state.run_bc_df))],
-        textfont=dict(color="black", size=14, family="Arial Black"),
-        showlegend=False,
-        hoverinfo='skip'
-    ))
+    # Only draw the 3D text if the checkbox is active
+    if st.session_state.show_labels:
+        fig.add_trace(go.Scatter3d(
+            x=st.session_state.run_bc_df['X (in)'],
+            y=st.session_state.run_bc_df['Y (in)'],
+            z=[tmax * 0.1] * len(st.session_state.run_bc_df),
+            mode='text',
+            text=[f"S{i+1}" for i in range(len(st.session_state.run_bc_df))],
+            textfont=dict(color="black", size=14, family="Arial Black"),
+            showlegend=False,
+            hoverinfo='skip'
+        ))
     
     fig.update_layout(
         uirevision=st.session_state.view_rev, 
