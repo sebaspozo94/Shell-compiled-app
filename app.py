@@ -69,8 +69,8 @@ with conf_col1:
     with st.expander("📏 Domain & Mesh", expanded=False):
         dimx = st.number_input("Domain X (in)", value=240, step=4, min_value=1)
         dimy = st.number_input("Domain Y (in)", value=192, step=4, min_value=1)
-        nelx = st.number_input("Elements X", value=120, step=4, min_value=1, max_value=200)
-        nely = st.number_input("Elements Y", value=96, step=4, min_value=1, max_value=200)
+        nelx = st.number_input("Elements X", value=120, step=4, min_value=1, max_value=150)
+        nely = st.number_input("Elements Y", value=96, step=4, min_value=1, max_value=150)
 
 with conf_col2:
     with st.expander("🎯 Optimization Settings", expanded=False):
@@ -371,6 +371,7 @@ if st.session_state.run_finished:
     # Pass the fixed matrices to the STL generator
     stl_data = generate_stl(X_mesh, Y_mesh, Z_plot_neg)
     st.download_button(label="📥 Download as .STL File", data=stl_data, file_name=f"Optimized_Slab_Iter{idx}.stl", mime="model/stl", type="primary")
+
 
 
 
