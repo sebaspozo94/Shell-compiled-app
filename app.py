@@ -197,11 +197,14 @@ with col_run:
         y_range = dimy + 20
         aspect = y_range / x_range
         
-        fig, ax = plt.subplots(figsize=(6, 6 * aspect), dpi=100)
-        fig.subplots_adjust(left=0, right=1, bottom=0, top=1)
+        # 1. Lock figure size
+        fig = plt.figure(figsize=(6, 6 * aspect), dpi=100)
+        
+        # 2. Force the axes to fill 100% of the figure (No dynamic padding)
+        ax = fig.add_axes([0, 0, 1, 1])
         ax.axis('off')
         
-        # 1. FIXED COLORSCALE: Maps exactly to the Plotly colors
+        # 3. Custom colorscale
         custom_cmap = LinearSegmentedColormap.from_list("custom_blue", ['#cbd5e1', '#2563eb', '#08306b'])
         
         ax.imshow(np.flipud(Z_matrix), cmap=custom_cmap, extent=[0, dimx, 0, dimy], 
@@ -225,9 +228,9 @@ with col_run:
         ax.set_xlim(-10, dimx + 10)
         ax.set_ylim(-10, dimy + 10)
         
-        # 2. FIXED RESIZING: Save to a tight image buffer instead of using st.pyplot directly
         buf = io.BytesIO()
-        plt.savefig(buf, format='png', bbox_inches='tight', pad_inches=0, transparent=True)
+        # 4. REMOVED bbox_inches='tight' - This stops the dynamic frame-by-frame resizing!
+        plt.savefig(buf, format='png', transparent=True)
         plt.close(fig)
         buf.seek(0)
         
@@ -242,7 +245,8 @@ with col_run:
             
             def update_live_view(current_it, current_ch, current_Z):
                 img_buffer = plot_2d_thickness_mpl(current_Z)
-                # Render using st.image for perfect, flicker-free sizing
+                # If you DONT want the image to stretch when you manually drag the browser window wider, 
+                # change use_container_width to False here:
                 live_plot_spot.image(img_buffer, use_container_width=True) 
                 status_text.info(f"⚙️ Optimizing... Iteration: {current_it}")
 
@@ -258,6 +262,7 @@ with col_run:
 
     if st.session_state.run_finished and st.session_state.history is not None:
         final_img_buffer = plot_2d_thickness_mpl(st.session_state.history[-1])
+        # And change use_container_width to False here:
         live_plot_spot.image(final_img_buffer, use_container_width=True)
         status_text.success(f"✅ Optimization Complete! Iterations run: {len(st.session_state.history)}")
 
@@ -373,3 +378,4 @@ if st.session_state.run_finished:
 
     stl_data = generate_stl(X_mesh, Y_mesh, Z_plot_neg)
     st.download_button(label="📥 Download as .STL File", data=stl_data, file_name=f"Optimized_Slab_Iter{idx}.stl", mime="model/stl", type="primary")
+
