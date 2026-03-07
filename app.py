@@ -28,7 +28,12 @@ st.markdown("""
 # --- APP HEADER ---
 st.markdown('<div class="main-header">Shell Topology Optimization</div>', unsafe_allow_html=True)
 st.markdown('<div class="tag-container"><span class="tag">Optimization</span><span class="tag">Shell</span><span class="tag">FEA Engine</span></div>', unsafe_allow_html=True)
-
+# --- APP OBJECTIVE (REINSTATED) ---
+with st.expander("🎯 App Objective", expanded=False):
+    st.markdown("""
+    **Objective:** Distribute a constant amount of material to maximize the stiffness of a shell-type structure 
+    under external distributed load and self-weight.
+    """)
 # --- 1. SETUP SESSION STATE ---
 if 'run_finished' not in st.session_state:
     st.session_state.run_finished = False
@@ -54,30 +59,30 @@ with st.sidebar:
     w_u = st.number_input("Distributed Load (w_u)", value=0.2778)
 
 # ==========================================
-# SECTION 1: GEOMETRY, MESH & OPTIMIZATION PARAMS
+# SECTION 1: MODEL CONFIGURATION (DROP MENUS)
 # ==========================================
-st.markdown('<div class="section-header">📐 Model Configuration</div>', unsafe_allow_html=True)
+st.markdown('<div class="section-header">⚙️ Model Configuration</div>', unsafe_allow_html=True)
 
-# Row for Mesh and Optimization parameters
-conf_col1, conf_col2, conf_col3 = st.columns([1, 1, 1])
+# Create three columns for the drop-down menus
+conf_col1, conf_col2, conf_col3 = st.columns(3)
 
 with conf_col1:
-    st.markdown("**Domain & Mesh**")
-    dimx = st.number_input("Domain X (in)", value=240, step=4, min_value=1)
-    dimy = st.number_input("Domain Y (in)", value=192, step=4, min_value=1)
-    nelx = st.number_input("Elements X", value=120, step=4, min_value=1, max_value=150)
-    nely = st.number_input("Elements Y", value=96, step=4, min_value=1, max_value=150)
+    with st.expander("📏 Domain & Mesh", expanded=False):
+        dimx = st.number_input("Domain X (in)", value=240, step=4, min_value=1)
+        dimy = st.number_input("Domain Y (in)", value=192, step=4, min_value=1)
+        nelx = st.number_input("Elements X", value=120, step=4, min_value=1, max_value=150)
+        nely = st.number_input("Elements Y", value=96, step=4, min_value=1, max_value=150)
 
 with conf_col2:
-    st.markdown("**Optimization Settings**")
-    vol_frac = st.slider("Volume Fraction", 0.05, 1.0, 0.3)
-    rmin = st.number_input("Filter Radius (rmin)", value=5.0)
-    itmax = st.number_input("Max Iterations", value=50)
+    with st.expander("🎯 Optimization Settings", expanded=False):
+        vol_frac = st.slider("Volume Fraction", 0.05, 1.0, 0.3)
+        rmin = st.number_input("Filter Radius (rmin)", value=5.0)
+        itmax = st.number_input("Max Iterations", value=50)
 
 with conf_col3:
-    st.markdown("**Thickness Limits**")
-    tmin = st.number_input("Min Thickness", value=2.0)
-    tmax = st.number_input("Max Thickness", value=12.0)
+    with st.expander("📐 Thickness Limits", expanded=False):
+        tmin = st.number_input("Min Thickness (in)", value=2.0)
+        tmax = st.number_input("Max Thickness (in)", value=12.0)
 
 st.markdown("---")
 
@@ -273,4 +278,5 @@ if st.session_state.run_finished:
         label="📥 Download as .STL File", data=stl_data,
         file_name=f"Optimized_Slab_Iter{idx}.stl", mime="model/stl", type="primary"
     )
+
 
