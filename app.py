@@ -69,19 +69,19 @@ with conf_col1:
     with st.expander("📏 Domain & Mesh", expanded=False):
         dimx = st.number_input("Domain X (in)", value=240, step=4, min_value=1)
         dimy = st.number_input("Domain Y (in)", value=192, step=4, min_value=1)
-        nelx = st.number_input("Elements X", value=120, step=4, min_value=1, max_value=150)
-        nely = st.number_input("Elements Y", value=96, step=4, min_value=1, max_value=150)
+        nelx = st.number_input("Elements X", value=120, step=4, min_value=1, max_value=500)
+        nely = st.number_input("Elements Y", value=96, step=4, min_value=1, max_value=500)
 
 with conf_col2:
     with st.expander("🎯 Optimization Settings", expanded=False):
         vol_frac = st.slider("Volume Fraction", 0.05, 1.0, 0.3)
-        rmin = st.number_input("Filter Radius (rmin)", value=5.0)
-        itmax = st.number_input("Max Iterations", value=50)
+        rmin = st.number_input("Filter Radius (rmin)", value=5.0, step=1.0)
+        itmax = st.number_input("Max Iterations", value=50, step=10)
 
 with conf_col3:
     with st.expander("📐 Thickness Limits", expanded=False):
-        tmin = st.number_input("Min Thickness (in)", value=2.0)
-        tmax = st.number_input("Max Thickness (in)", value=12.0)
+        tmin = st.number_input("Min Thickness (in)", value=2.0, step=0.5)
+        tmax = st.number_input("Max Thickness (in)", value=12.0, step=0.5)
 
 st.markdown("---")
 
@@ -134,15 +134,23 @@ fig2d.add_trace(go.Scatter(
     hoverinfo='text', text="Click here", name="Grid"
 ))
 
+# Calculate fixed dimensions to prevent the infinite resize loop
+aspect_ratio = dimy / dimx
+plot_width = 800
+plot_height = int(plot_width * aspect_ratio)
+
 fig2d.update_layout(
-    xaxis=dict(range=[-10, dimx+10], fixedrange=True),
-    yaxis=dict(range=[-10, dimy+10], scaleanchor="x", scaleratio=1, fixedrange=True),
-    clickmode='event+select', dragmode=False, # Disable drag to prioritize clicking
-    margin=dict(l=0, r=0, t=0, b=0), height=500, showlegend=False
+    autosize=False,
+    width=plot_width,
+    height=plot_height,
+    xaxis=dict(range=[-10, dimx+10]),  # <--- Removed fixedrange=True
+    yaxis=dict(range=[-10, dimy+10], scaleanchor="x", scaleratio=1), # <--- Removed fixedrange=True
+    clickmode='event+select', # <--- Removed dragmode=False
+    margin=dict(l=0, r=0, t=0, b=0), showlegend=False
 )
 
 # 7. Capture the Selection
-event = st.plotly_chart(fig2d, on_select="rerun", key="bc_map", use_container_width=True)
+event = st.plotly_chart(fig2d, on_select="rerun", key="bc_map", use_container_width=False)
 
 if event and "selection" in event and len(event["selection"]["points"]) > 0:
     # Get the clicked point from the scatter trace
@@ -345,8 +353,8 @@ if st.session_state.run_finished:
     fig.update_layout(
         uirevision=st.session_state.view_rev, 
         scene=dict(
-            xaxis=dict(range=[0, dimx], title='X (in)'),
-            yaxis=dict(range=[0, dimy], title='Y (in)'),
+            xaxis=dict(range=[-0.05 * dimx, 1.05 * dimx], title='X (in)'),
+            yaxis=dict(range=[-0.05 * dimy, 1.05 * dimy], title='Y (in)'),
             zaxis=dict(range=[support_depth, tmax * 0.2], title='Z (in)'),
             aspectratio=dict(x=dimx/max(dimx, dimy), y=dimy/max(dimx, dimy), z=z_scale_pct/100.0),
             camera=dict(eye=st.session_state.cam_eye, up=st.session_state.cam_up)
@@ -371,23 +379,3 @@ if st.session_state.run_finished:
     # Pass the fixed matrices to the STL generator
     stl_data = generate_stl(X_mesh, Y_mesh, Z_plot_neg)
     st.download_button(label="📥 Download as .STL File", data=stl_data, file_name=f"Optimized_Slab_Iter{idx}.stl", mime="model/stl", type="primary")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
