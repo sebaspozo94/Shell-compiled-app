@@ -1,7 +1,7 @@
 import streamlit as st
 import matplotlib.pyplot as plt
 import numpy as np
-import logic  # This imports your compiled logic.so file
+import logic  # Ensure logic.so is in the same directory
 import plotly.graph_objects as go
 import io
 import stl              
@@ -28,12 +28,13 @@ st.markdown("""
 # --- APP HEADER ---
 st.markdown('<div class="main-header">Shell Topology Optimization</div>', unsafe_allow_html=True)
 st.markdown('<div class="tag-container"><span class="tag">Optimization</span><span class="tag">Shell</span><span class="tag">FEA Engine</span></div>', unsafe_allow_html=True)
-# --- APP OBJECTIVE (REINSTATED) ---
+
 with st.expander("🎯 App Objective", expanded=False):
     st.markdown("""
     **Objective:** Distribute a constant amount of material to maximize the stiffness of a shell-type structure 
     under external distributed load and self-weight.
     """)
+
 # --- 1. SETUP SESSION STATE ---
 if 'run_finished' not in st.session_state:
     st.session_state.run_finished = False
@@ -62,8 +63,6 @@ with st.sidebar:
 # SECTION 1: MODEL CONFIGURATION (DROP MENUS)
 # ==========================================
 st.markdown('<div class="section-header">⚙️ Model Configuration</div>', unsafe_allow_html=True)
-
-# Create three columns for the drop-down menus
 conf_col1, conf_col2, conf_col3 = st.columns(3)
 
 with conf_col1:
@@ -91,7 +90,6 @@ st.markdown("---")
 # ==========================================
 st.markdown('<div class="section-header">🔍 Interactive Support Setup</div>', unsafe_allow_html=True)
 
-# Full width map for precision
 add_mode = st.toggle("🖱️ Click on Map to Add Pinned Support", value=False)
 
 fig2d = go.Figure()
@@ -114,16 +112,15 @@ fig2d.update_layout(
 
 event = st.plotly_chart(fig2d, on_select="rerun", selection_mode="points", key="bc_map", use_container_width=True)
 
-if add_mode and event and len(event.selection["points"]) > 0:
-    clicked_pt = event.selection["points"][0]
+if add_mode and event and event.get("selection") and len(event["selection"]["points"]) > 0:
+    clicked_pt = event["selection"]["points"][0]
     new_x, new_y = clicked_pt["x"], clicked_pt["y"]
     duplicate = st.session_state.bc_df[(st.session_state.bc_df['X (in)'] == new_x) & (st.session_state.bc_df['Y (in)'] == new_y)]
     if duplicate.empty:
-        new_row = pd.DataFrame([[new_x, new_y, 4.0, 4.0, "Pinned"]], columns=["X (in)", "Y (in)", "Width", "Height", "Type"])
+        new_row = pd.DataFrame([[float(new_x), float(new_y), 4.0, 4.0, "Pinned"]], columns=["X (in)", "Y (in)", "Width", "Height", "Type"])
         st.session_state.bc_df = pd.concat([st.session_state.bc_df, new_row], ignore_index=True)
         st.rerun() 
 
-# --- NEW: TABLE AS A DROP MENU ---
 with st.expander("📋 View/Edit Support Coordinates", expanded=False):
     edited_bc_df = st.data_editor(
         st.session_state.bc_df, 
@@ -136,8 +133,8 @@ with st.expander("📋 View/Edit Support Coordinates", expanded=False):
         st.session_state.bc_df = edited_bc_df
         st.rerun()
 
-# Prep the matrix for the solver
-solver_df = edited_bc_df.copy()
+# Solver prep
+solver_df = st.session_state.bc_df.copy()
 solver_df["Type"] = solver_df["Type"].map({"Pinned": 0, "Fixed": 1})
 BCMatrix = solver_df.to_numpy()
 
@@ -145,8 +142,6 @@ BCMatrix = solver_df.to_numpy()
 # SECTION 3: SOLVER & RESULTS
 # ==========================================
 st.markdown("---")
-
-# Centered Run Button
 col_btn_l, col_btn_mid, col_btn_r = st.columns([1, 2, 1])
 with col_btn_mid:
     if st.button("🚀 Run Optimization", type="primary", use_container_width=True):
@@ -169,128 +164,82 @@ with col_btn_mid:
 
             with st.spinner("Optimizing..."):
                 SW_val = 1 if self_weight else 0
-                X, Y, Thickness, history = logic.run_topology_optimization(dimx, dimy, E, nu, rho, SW_val, BCMatrix, w_u, int(nelx), int(nely), target_volume, rmin, tmin, tmax, int(itmax), progress_callback=update_live_view)
+                X, Y, Thickness, history = logic.run_topology_optimization(
+                    float(dimx), float(dimy), float(E), float(nu), float(rho), int(SW_val), 
+                    BCMatrix, float(w_u), int(nelx), int(nely), float(target_volume), 
+                    float(rmin), float(tmin), float(tmax), int(itmax), progress_callback=update_live_view
+                )
                 st.session_state.history, st.session_state.X, st.session_state.Y, st.session_state.run_finished = history, X, Y, True
                 st.rerun()
 
-# ==========================================
-# SECTION 3: FULL WIDTH POST-PROCESS
-# ==========================================
 if st.session_state.run_finished:
-    st.markdown("<br><hr>", unsafe_allow_html=True)
-    st.markdown('<div class="main-header" style="font-size: 1.8rem;">🕒 Interactive 3D Results</div>', unsafe_allow_html=True)
-
+    st.markdown('<div class="section-header">🕒 Interactive 3D Results</div>', unsafe_allow_html=True)
     steps = len(st.session_state.history)
     
-    if "cam_eye" not in st.session_state:
-        st.session_state.cam_eye = dict(x=1.2, y=-1.5, z=-0.8) 
-    if "cam_up" not in st.session_state:
-        st.session_state.cam_up = dict(x=0, y=0, z=1) 
-    if "z_scale_val" not in st.session_state:
-        st.session_state.z_scale_val = int(100*tmax/max(dimx, dimy))
-    if "view_rev" not in st.session_state:
-        st.session_state.view_rev = 0
+    if "cam_eye" not in st.session_state: st.session_state.cam_eye = dict(x=1.2, y=-1.5, z=-0.8) 
+    if "cam_up" not in st.session_state: st.session_state.cam_up = dict(x=0, y=0, z=1) 
+    if "z_scale_val" not in st.session_state: st.session_state.z_scale_val = int(100*tmax/max(dimx, dimy))
+    if "view_rev" not in st.session_state: st.session_state.view_rev = 0
 
     view_cols = st.columns(5)
     if view_cols[0].button("⬇️ Bottom (XY)"):
-        st.session_state.cam_eye = dict(x=0, y=0, z=-2.5)
-        st.session_state.cam_up = dict(x=0, y=1, z=0) 
+        st.session_state.cam_eye, st.session_state.cam_up = dict(x=0, y=0, z=-2.5), dict(x=0, y=1, z=0)
         st.session_state.view_rev += 1
-        
     if view_cols[1].button("➡️ Front (XZ)"):
-        st.session_state.cam_eye = dict(x=0, y=-2.5, z=0)
-        st.session_state.cam_up = dict(x=0, y=0, z=1)
+        st.session_state.cam_eye, st.session_state.cam_up = dict(x=0, y=-2.5, z=0), dict(x=0, y=0, z=1)
         st.session_state.view_rev += 1
-        
     if view_cols[2].button("↗️ Side (YZ)"):
-        st.session_state.cam_eye = dict(x=-2.5, y=0, z=0)
-        st.session_state.cam_up = dict(x=0, y=0, z=1)
+        st.session_state.cam_eye, st.session_state.cam_up = dict(x=-2.5, y=0, z=0), dict(x=0, y=0, z=1)
         st.session_state.view_rev += 1
-        
     if view_cols[3].button("🔄 Reset View"):
-        st.session_state.cam_eye = dict(x=1.2, y=-1.5, z=-0.8)
-        st.session_state.cam_up = dict(x=0, y=0, z=1)
+        st.session_state.cam_eye, st.session_state.cam_up = dict(x=1.2, y=-1.5, z=-0.8), dict(x=0, y=0, z=1)
         st.session_state.view_rev += 1
-        
     if view_cols[4].button("📏 True Scale (Z)"):
         st.session_state.z_scale_val = int(100*tmax/max(dimx, dimy))
         st.session_state.view_rev += 1
 
     col_slider, col_scale = st.columns([2, 1])
-    with col_slider:
-        idx = st.slider("Iteration History", 0, steps - 1, steps - 1)
-    with col_scale:
-        z_scale_pct = st.slider("Visual Z-Scale (%)", 0, 100, key="z_scale_val")
-    Z_plot = st.session_state.history[idx]
+    with col_slider: idx = st.slider("Iteration History", 0, steps - 1, steps - 1)
+    with col_scale: z_scale_pct = st.slider("Visual Z-Scale (%)", 0, 100, key="z_scale_val")
     
-    x_1d = np.unique(st.session_state.X)
-    y_1d = np.unique(st.session_state.Y)
-    if len(x_1d) == Z_plot.shape[1] + 1:
-        x_1d = (x_1d[:-1] + x_1d[1:]) / 2.0
-    if len(y_1d) == Z_plot.shape[0] + 1:
-        y_1d = (y_1d[:-1] + y_1d[1:]) / 2.0
+    Z_plot = st.session_state.history[idx]
+    x_1d, y_1d = np.unique(st.session_state.X), np.unique(st.session_state.Y)
+    if len(x_1d) == Z_plot.shape[1] + 1: x_1d = (x_1d[:-1] + x_1d[1:]) / 2.0
+    if len(y_1d) == Z_plot.shape[0] + 1: y_1d = (y_1d[:-1] + y_1d[1:]) / 2.0
     X_mesh, Y_mesh = np.meshgrid(x_1d, y_1d)
 
     Z_plot_neg = -Z_plot 
+    custom_colorscale = [[0.0, '#08306b'], [0.4, '#2563eb'], [1.0, '#cbd5e1']]
 
-    custom_colorscale = [
-        [0.0, '#08306b'], 
-        [0.4, '#2563eb'],
-        [1.0, '#cbd5e1'] 
-    ]
-
-    roof_surface = go.Surface(
-        z=np.zeros_like(Z_plot_neg), x=X_mesh, y=Y_mesh,
-        colorscale=[[0, '#cbd5e1'], [1, '#cbd5e1']], showscale=False, hoverinfo='skip' 
-    )
-
-    bottom_surface = go.Surface(
-        z=Z_plot_neg, x=X_mesh, y=Y_mesh, colorscale=custom_colorscale, 
-        cmin=-tmax, cmax=0, colorbar=dict(title='Thickness (in)', outlinewidth=0, tickfont=dict(color='#475569'))
-    )
+    roof_surface = go.Surface(z=np.zeros_like(Z_plot_neg), x=X_mesh, y=Y_mesh, colorscale=[[0, '#cbd5e1'], [1, '#cbd5e1']], showscale=False, hoverinfo='skip')
+    bottom_surface = go.Surface(z=Z_plot_neg, x=X_mesh, y=Y_mesh, colorscale=custom_colorscale, cmin=-tmax, cmax=0, colorbar=dict(title='Thickness (in)'))
 
     fig = go.Figure(data=[roof_surface, bottom_surface])
-
-    max_dim = max(dimx, dimy)
-    z_ratio = z_scale_pct / 100.0
-
     fig.update_layout(
         uirevision=st.session_state.view_rev, 
         scene=dict(
-            xaxis=dict(range=[0, dimx], title='X (in)', backgroundcolor='white', gridcolor='#e2e8f0', showbackground=True),
-            yaxis=dict(range=[0, dimy], title='Y (in)', backgroundcolor='white', gridcolor='#e2e8f0', showbackground=True),
-            zaxis=dict(range=[-tmax, 0], title='Z (in)', backgroundcolor='white', gridcolor='#e2e8f0', showbackground=True),
-            aspectratio=dict(x=dimx/max_dim, y=dimy/max_dim, z=z_ratio),
+            xaxis=dict(range=[0, dimx], title='X (in)'),
+            yaxis=dict(range=[0, dimy], title='Y (in)'),
+            zaxis=dict(range=[-tmax, 0], title='Z (in)'),
+            aspectratio=dict(x=dimx/max(dimx, dimy), y=dimy/max(dimx, dimy), z=z_scale_pct/100.0),
             camera=dict(eye=st.session_state.cam_eye, up=st.session_state.cam_up)
         ),
-        margin=dict(l=0, r=0, b=0, t=0), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', height=600
+        margin=dict(l=0, r=0, b=0, t=0), height=600
     )
-    
     st.plotly_chart(fig, use_container_width=True)
     
+    # STL Export
     st.subheader("💾 Export Geometry")
-    
     def generate_stl(X, Y, Z):
         points2D = np.column_stack([X.flatten(), Y.flatten()])
-        Z_flat = Z.flatten()
         tri = Delaunay(points2D)
-        
         slab_mesh = mesh.Mesh(np.zeros(tri.simplices.shape[0], dtype=mesh.Mesh.dtype))
         for i, f in enumerate(tri.simplices):
             for j in range(3):
-                slab_mesh.vectors[i][j] = [points2D[f[j], 0], points2D[f[j], 1], Z_flat[f[j]]]
-                
+                slab_mesh.vectors[i][j] = [points2D[f[j], 0], points2D[f[j], 1], Z.flatten()[f[j]]]
         buf = io.BytesIO()
         slab_mesh.save('slab.stl', fh=buf)
         return buf.getvalue()
 
     stl_data = generate_stl(X_mesh, Y_mesh, Z_plot_neg)
-    
-    st.download_button(
-        label="📥 Download as .STL File", data=stl_data,
-        file_name=f"Optimized_Slab_Iter{idx}.stl", mime="model/stl", type="primary"
-    )
-
-
-
-
+    st.download_button(label="📥 Download as .STL File", data=stl_data, file_name=f"Optimized_Slab_Iter{idx}.stl", mime="model/stl", type="primary")
