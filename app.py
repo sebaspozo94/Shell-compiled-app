@@ -198,18 +198,33 @@ with col_run:
     solver_df["Type"] = solver_df["Type"].map({"Pinned": 0, "Fixed": 1})
     BCMatrix = solver_df.to_numpy()
 
-    # 1. Place the button FIRST so it renders at the very top of the column
     run_pressed = st.button("🚀 Run Optimization", type="primary", use_container_width=True)
-
-    # 2. Create the empty placeholders below the button so the text/plot render under it
     status_text = st.empty()
     live_plot_spot = st.empty()
 
-    # Helper function to keep our drawing code clean
+    # --- PERFECT SYNC DRAWING FUNCTION ---
     def plot_2d_thickness(Z_matrix):
-        fig_live, ax_live = plt.subplots(figsize=(6, 4))
-        fig_live.patch.set_alpha(0.0)
+        # 1. Calculate the exact Aspect Ratio (including the -10 / +10 padding from Plotly)
+        plot_x_range = dimx + 20 
+        plot_y_range = dimy + 20
+        aspect_ratio = plot_y_range / plot_x_range
+        
+        # 2. Build the exact size to mirror the left column
+        fig_w = 6.0
+        fig_h = fig_w * aspect_ratio
+        fig_live = plt.figure(figsize=(fig_w, fig_h))
+        
+        # 3. [0, 0, 1, 1] means ZERO margins around the graph!
+        ax_live = fig_live.add_axes([0, 0, 1, 1])
         ax_live.axis('off') 
+        
+        # 4. Enforce identical bounding coordinates to Plotly
+        ax_live.set_xlim(-10, dimx + 10)
+        ax_live.set_ylim(-10, dimy + 10)
+        
+        # Draw the dashed border just like the Plotly chart
+        ax_live.plot([0, dimx, dimx, 0, 0], [0, 0, dimy, dimy, 0], 
+                     color="#0f172a", linestyle="--", linewidth=2)
         
         im = ax_live.imshow(Z_matrix, cmap=custom_cmap, vmin=0, vmax=tmax, 
                             extent=[0, dimx, 0, dimy], origin='upper')
@@ -223,7 +238,7 @@ with col_run:
                          color='black', ha='center', va='center', fontsize=9, fontweight='bold')
         return fig_live
 
-    # 3. If the button was pressed, run the logic!
+    # Button Execution
     if run_pressed:
         if len(BCMatrix) == 0:
             st.error("Please add at least one support!")
@@ -233,7 +248,8 @@ with col_run:
             
             def update_live_view(current_it, current_ch, current_Z):
                 fig_frame = plot_2d_thickness(current_Z)
-                live_plot_spot.pyplot(fig_frame)
+                # Ensure use_container_width=True is set to force scale it beautifully!
+                live_plot_spot.pyplot(fig_frame, use_container_width=True)
                 plt.close(fig_frame)
                 status_text.info(f"⚙️ Optimizing... Iteration: {current_it}")
 
@@ -247,11 +263,11 @@ with col_run:
                 st.session_state.history, st.session_state.X, st.session_state.Y, st.session_state.run_finished = history, X, Y, True
                 st.rerun()
 
-    # 4. Render Final Results permanently (since they are placed after the button in the code, they render below it)
+    # Render Final Iteration
     if st.session_state.run_finished and st.session_state.history is not None:
         status_text.success(f"✅ Optimization Complete! Iterations run: {len(st.session_state.history)}")
         final_frame = plot_2d_thickness(st.session_state.history[-1])
-        live_plot_spot.pyplot(final_frame)
+        live_plot_spot.pyplot(final_frame, use_container_width=True)
         plt.close(final_frame)
 
 
