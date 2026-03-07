@@ -300,48 +300,50 @@ if st.session_state.run_finished:
 
     fig = go.Figure(data=[roof_surface, bottom_surface])
 
-# 4. Add Extruded Supports to 3D Plot (Fixed Vertex Logic)
+# 4. Add Extruded Supports to 3D Plot
+    # We use -tmax * 1.2 to make them slightly deeper than the max thickness for visibility
+    support_depth = -tmax * 1.2 
+
     for i, row in st.session_state.bc_df.iterrows():
         hx, hy = row['Width'] / 2.0, row['Height'] / 2.0
         x_min, x_max = row['X (in)'] - hx, row['X (in)'] + hx
         y_min, y_max = row['Y (in)'] - hy, row['Y (in)'] + hy
-        z_min, z_max = -tmax, 0 # Extrude from base to top
 
         fig.add_trace(go.Mesh3d(
-            # 8 vertices of a cube
             x=[x_min, x_max, x_max, x_min, x_min, x_max, x_max, x_min],
             y=[y_min, y_min, y_max, y_max, y_min, y_min, y_max, y_max],
-            z=[z_min, z_min, z_min, z_min, z_max, z_max, z_max, z_max],
+            z=[support_depth, support_depth, support_depth, support_depth, 0, 0, 0, 0],
             
-            # i, j, k define the triangles forming the faces
+            # Triangle mapping for a solid box
             i=[7, 0, 0, 0, 4, 4, 6, 6, 4, 0, 3, 2],
             j=[3, 4, 1, 2, 5, 6, 5, 2, 0, 1, 6, 3],
             k=[0, 7, 2, 3, 6, 7, 1, 1, 5, 5, 7, 6],
             
             color='black', 
-            opacity=0.2, 
+            opacity=0.3, 
             flatshading=True,
-            name=f"Support S{i+1}",
             showlegend=False
         ))
 
-    # 5. Add 3D Text Labels (Floating just above the extrusion)
+    # 5. Add 3D Text Labels in Black
+    # Positioned at 0.1 * tmax positive (above the design)
     fig.add_trace(go.Scatter3d(
         x=st.session_state.bc_df['X (in)'],
         y=st.session_state.bc_df['Y (in)'],
-        z=[0.5] * len(st.session_state.bc_df), 
+        z=[tmax * 0.1] * len(st.session_state.bc_df), 
         mode='text',
         text=[f"S{i+1}" for i in range(len(st.session_state.bc_df))],
         textfont=dict(color="black", size=14, family="Arial Black"),
-        showlegend=False
+        showlegend=False,
+        hoverinfo='skip'
     ))
-    
+
     fig.update_layout(
         uirevision=st.session_state.view_rev, 
         scene=dict(
             xaxis=dict(range=[0, dimx], title='X (in)'),
             yaxis=dict(range=[0, dimy], title='Y (in)'),
-            zaxis=dict(range=[-tmax, 0], title='Z (in)'),
+            zaxis=dict(range=[support_depth, tmax * 0.2], title='Z (in)'),
             aspectratio=dict(x=dimx/max(dimx, dimy), y=dimy/max(dimx, dimy), z=z_scale_pct/100.0),
             camera=dict(eye=st.session_state.cam_eye, up=st.session_state.cam_up)
         ),
@@ -364,6 +366,7 @@ if st.session_state.run_finished:
 
     stl_data = generate_stl(X_mesh, Y_mesh, Z_plot_neg)
     st.download_button(label="📥 Download as .STL File", data=stl_data, file_name=f"Optimized_Slab_Iter{idx}.stl", mime="model/stl", type="primary")
+
 
 
 
