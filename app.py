@@ -286,8 +286,8 @@ if st.session_state.run_finished:
     
     Z_plot = st.session_state.history[idx]
     x_1d, y_1d = np.unique(st.session_state.X), np.unique(st.session_state.Y)
-    if len(x_1d) == Z_plot.shape[0] + 1: x_1d = (x_1d[:-1] + x_1d[1:]) / 2.0
-    if len(y_1d) == Z_plot.shape[1] + 1: y_1d = (y_1d[:-1] + y_1d[1:]) / 2.0
+    if len(x_1d) == Z_plot.shape[1] + 1: x_1d = (x_1d[:-1] + x_1d[1:]) / 2.0
+    if len(y_1d) == Z_plot.shape[0] + 1: y_1d = (y_1d[:-1] + y_1d[1:]) / 2.0
     X_mesh, Y_mesh = np.meshgrid(x_1d, y_1d)
 
     Z_plot_neg = -Z_plot 
@@ -364,6 +364,7 @@ if st.session_state.run_finished:
 
     stl_data = generate_stl(X_mesh, Y_mesh, Z_plot_neg)
     st.download_button(label="📥 Download as .STL File", data=stl_data, file_name=f"Optimized_Slab_Iter{idx}.stl", mime="model/stl", type="primary")
+
 
 
 
