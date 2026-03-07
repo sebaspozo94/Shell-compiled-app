@@ -90,81 +90,79 @@ st.markdown("---")
 # ==========================================
 st.markdown('<div class="section-header">🔍 Interactive Support Setup</div>', unsafe_allow_html=True)
 
+# 1. Initialize session state keys for toggles if they don't exist
+if 'add_t' not in st.session_state: st.session_state.add_t = False
+if 'del_t' not in st.session_state: st.session_state.del_t = False
+
+# 2. Define Callback Functions for Mutual Exclusivity
+def on_add_toggle():
+    if st.session_state.add_t:
+        st.session_state.del_t = False
+
+def on_del_toggle():
+    if st.session_state.del_t:
+        st.session_state.add_t = False
+
+# 3. Create Toggle Row
 col_t1, col_t2 = st.columns(2)
-add_mode = col_t1.toggle("🖱️ Click to ADD Support", value=False, key="add_t")
-del_mode = col_t2.toggle("🗑️ Click to DELETE Support", value=False, key="del_t")
+add_mode = col_t1.toggle("🖱️ Click to ADD Support", key="add_t", on_change=on_add_toggle)
+del_mode = col_t2.toggle("🗑️ Click to DELETE Support", key="del_t", on_change=on_del_toggle)
 
-# Ensure mutual exclusivity: If one is turned on, the other shouldn't interfere
-if add_mode and del_mode:
-    st.warning("Both modes active. System will prioritize the specific point selected.")
-
+# --- MAP RENDERING ---
 fig2d = go.Figure()
-
-# 1. Draw the Design Domain
 fig2d.add_shape(type="rect", x0=0, y0=0, x1=dimx, y1=dimy, 
                 line=dict(color="#0f172a", width=2, dash="dash"), fillcolor="rgba(0,0,0,0)")
 
-# 2. Draw existing supports with Labels
+# Draw existing supports (Black Labels as requested)
 for i, row in st.session_state.bc_df.iterrows():
     hx, hy = row['Width'] / 2.0, row['Height'] / 2.0
-    color = '#2563eb' if row['Type'] == "Pinned" else '#0f172a' 
-    
-    # Draw the support rectangle
-    fig2d.add_shape(type="rect", 
-                    x0=row['X (in)'] - hx, y0=row['Y (in)'] - hy, 
-                    x1=row['X (in)'] + hx, y1=row['Y (in)'] + hy, 
+    color = '#2563eb'
+    fig2d.add_shape(type="rect", x0=row['X (in)']-hx, y0=row['Y (in)']-hy, x1=row['X (in)']+hx, y1=row['Y (in)']+hy, 
                     line=dict(color=color, width=2), fillcolor=color, opacity=0.7)
-    
-    # Add the Identifier Label (S1, S2, etc.)
-    fig2d.add_annotation(x=row['X (in)'], y=row['Y (in)'], text=f"S{i+1}", 
-                         showarrow=False, font=dict(color="black", size=10, family="Arial Black"))
+    fig2d.add_annotation(x=row['X (in)'], y=row['Y (in)'], text=f"S{i+1}", showarrow=False, 
+                         font=dict(color="black", size=10, family="Arial Black"))
 
-# 3. Show Grid for Interaction (Both Add and Delete now use the grid)
+# 4. Show Grid for Interaction
 if add_mode or del_mode:
-    grid_spacing = 12 # 12-inch grid for selection
+    grid_spacing = 12
     grid_x, grid_y = np.meshgrid(np.arange(0, dimx + grid_spacing, grid_spacing), 
                                  np.arange(0, dimy + grid_spacing, grid_spacing))
     
-    grid_color = 'rgba(37, 99, 235, 0.2)' if add_mode else 'rgba(239, 68, 68, 0.2)'
+    # Visual feedback: Blue for Add, Red for Delete
+    grid_color = 'rgba(37, 99, 235, 0.2)' if add_mode else 'rgba(239, 68, 68, 0.4)'
     
     fig2d.add_trace(go.Scatter(
         x=grid_x.flatten(), y=grid_y.flatten(), 
         mode='markers', 
         marker=dict(size=8, color=grid_color, symbol='square'), 
-        hoverinfo='text',
-        text="Click to Add/Delete"
+        hoverinfo='skip'
     ))
 
 fig2d.update_layout(
-    xaxis=dict(title="X (in)", range=[-10, dimx+10], constrain="domain", gridcolor='#f1f5f9'),
-    yaxis=dict(title="Y (in)", range=[-10, dimy+10], scaleanchor="x", scaleratio=1, constrain="domain", gridcolor='#f1f5f9'),
+    xaxis=dict(title="X (in)", range=[-10, dimx+10], constrain="domain"),
+    yaxis=dict(title="Y (in)", range=[-10, dimy+10], scaleanchor="x", scaleratio=1),
     margin=dict(l=0, r=0, t=20, b=0), height=500, showlegend=False, clickmode='event+select', plot_bgcolor='white'
 )
 
 event = st.plotly_chart(fig2d, on_select="rerun", selection_mode="points", key="bc_map", use_container_width=True)
 
-# 4. Handle Logic for Add/Delete via Grid Selection
+# 5. Handle Logic for Add/Delete
 if event and event.get("selection") and len(event["selection"]["points"]) > 0:
     clicked_pt = event["selection"]["points"][0]
     cx, cy = clicked_pt["x"], clicked_pt["y"]
     
-    if add_mode and not del_mode:
-        # Check for duplicates at the exact grid point
+    if add_mode:
         duplicate = st.session_state.bc_df[(st.session_state.bc_df['X (in)'] == cx) & (st.session_state.bc_df['Y (in)'] == cy)]
         if duplicate.empty:
-            new_row = pd.DataFrame([[float(cx), float(cy), 4.0, 4.0, "Pinned"]], 
-                                   columns=["X (in)", "Y (in)", "Width", "Height", "Type"])
+            new_row = pd.DataFrame([[float(cx), float(cy), 4.0, 4.0, "Pinned"]], columns=["X (in)", "Y (in)", "Width", "Height", "Type"])
             st.session_state.bc_df = pd.concat([st.session_state.bc_df, new_row], ignore_index=True)
             st.rerun()
             
     elif del_mode:
-        # HIT-TEST: Check if clicked grid point is inside ANY existing support area
         to_drop = []
         for i, row in st.session_state.bc_df.iterrows():
             hx, hy = row['Width'] / 2.0, row['Height'] / 2.0
-            # If click point is within the rectangle bounds
-            if (row['X (in)'] - hx <= cx <= row['X (in)'] + hx) and \
-               (row['Y (in)'] - hy <= cy <= row['Y (in)'] + hy):
+            if (row['X (in)'] - hx <= cx <= row['X (in)'] + hx) and (row['Y (in)'] - hy <= cy <= row['Y (in)'] + hy):
                 to_drop.append(i)
         
         if to_drop:
@@ -366,6 +364,7 @@ if st.session_state.run_finished:
 
     stl_data = generate_stl(X_mesh, Y_mesh, Z_plot_neg)
     st.download_button(label="📥 Download as .STL File", data=stl_data, file_name=f"Optimized_Slab_Iter{idx}.stl", mime="model/stl", type="primary")
+
 
 
 
