@@ -48,6 +48,10 @@ if "bc_df" not in st.session_state:
         columns=["X (in)", "Y (in)", "Width", "Height", "Type"]
     )
 
+# NEW: We need a snapshot of the BCs used during the actual run so the results don't drift if inputs change
+if "run_bc_df" not in st.session_state:
+    st.session_state.run_bc_df = st.session_state.bc_df.copy()
+
 # --- SIDEBAR (Materials & Loads) ---
 with st.sidebar:
     st.header("🧪 Material Properties")
@@ -114,7 +118,7 @@ with col_bc:
 
     for i, row in st.session_state.bc_df.iterrows():
         hx, hy = row['Width'] / 2.0, row['Height'] / 2.0
-        color = '#2563eb'
+        color = 'red'  # Changed to red across all UI
         fig2d.add_shape(type="rect", x0=row['X (in)']-hx, y0=row['Y (in)']-hy, x1=row['X (in)']+hx, y1=row['Y (in)']+hy, 
                         line=dict(color=color, width=2), fillcolor=color, opacity=0.6)
         fig2d.add_annotation(x=row['X (in)'], y=row['Y (in)'], text=f"S{i+1}", showarrow=False, 
@@ -210,13 +214,14 @@ with col_run:
                                    facecolor='none', linestyle='--')
         ax.add_patch(border)
         
-        for i, row in st.session_state.bc_df.iterrows():
+        # NOTE: Drawing from run_bc_df (the snapshot)
+        for i, row in st.session_state.run_bc_df.iterrows():
             hx, hy = row['Width'] / 2.0, row['Height'] / 2.0
             x_min = row['X (in)'] - hx
             y_min = row['Y (in)'] - hy
             
             support = patches.Rectangle((x_min, y_min), row['Width'], row['Height'], 
-                                        linewidth=1, edgecolor='black', facecolor='black', alpha=0.3)
+                                        linewidth=1, edgecolor='darkred', facecolor='red', alpha=0.5)
             ax.add_patch(support)
             ax.text(row['X (in)'], row['Y (in)'], f"S{i+1}", color='black', 
                     ha='center', va='center', fontweight='bold', fontsize=10)
@@ -234,7 +239,6 @@ with col_run:
     def plot_2d_thickness_plotly(Z_matrix):
         fig = go.Figure()
         
-        # Add heatmap using exact Plotly colorscale
         custom_colorscale_plotly = [[0.0, '#cbd5e1'], [0.5, '#2563eb'], [1.0, '#08306b']]
         fig.add_trace(go.Heatmap(
             z=np.flipud(Z_matrix),
@@ -244,22 +248,20 @@ with col_run:
             zmin=0, zmax=tmax, showscale=False, hoverinfo='skip'
         ))
         
-        # Add dashed border
         fig.add_shape(type="rect", x0=0, y0=0, x1=dimx, y1=dimy, 
                       line=dict(color="#0f172a", width=2, dash="dash"), fillcolor="rgba(0,0,0,0)")
         
-        # Add Supports overlaying the heatmap
-        for i, row in st.session_state.bc_df.iterrows():
+        # NOTE: Drawing from run_bc_df (the snapshot)
+        for i, row in st.session_state.run_bc_df.iterrows():
             hx, hy = row['Width'] / 2.0, row['Height'] / 2.0
             x_min, x_max = row['X (in)'] - hx, row['X (in)'] + hx
             y_min, y_max = row['Y (in)'] - hy, row['Y (in)'] + hy
             
             fig.add_shape(type="rect", x0=x_min, y0=y_min, x1=x_max, y1=y_max, 
-                          line=dict(color='black', width=1), fillcolor='rgba(0,0,0,0.3)')
+                          line=dict(color='red', width=1), fillcolor='rgba(255,0,0,0.4)')
             fig.add_annotation(x=row['X (in)'], y=row['Y (in)'], text=f"S{i+1}", showarrow=False, 
                                font=dict(color="black", size=11, family="Arial Black"))
             
-        # Match the EXACT layout settings of the left column boundary plot
         fig.update_layout(
             autosize=True,
             xaxis=dict(range=[-10, dimx+10], constrain='domain'), 
@@ -272,11 +274,13 @@ with col_run:
         if len(BCMatrix) == 0:
             st.error("Please add at least one support!")
         else:
+            # 1. Take a snapshot of the BC setup for this run!
+            st.session_state.run_bc_df = st.session_state.bc_df.copy()
+            
             total_area = dimx * dimy
             target_volume = (total_area * tmin) + (vol_frac * total_area * (tmax - tmin))
             
             def update_live_view(current_it, current_ch, current_Z):
-                # 1. LIVE ANIMATION: Render using Matplotlib for fast, blink-free speed
                 img_buffer = plot_2d_thickness_mpl(current_Z)
                 live_plot_spot.image(img_buffer, use_container_width=True) 
                 status_text.info(f"⚙️ Optimizing... Iteration: {current_it}")
@@ -292,7 +296,6 @@ with col_run:
                 st.rerun()
 
     if st.session_state.run_finished and st.session_state.history is not None:
-        # 2. END OF RUN SWAP: Replace the image with the perfectly matched Plotly Widget
         final_plotly_fig = plot_2d_thickness_plotly(st.session_state.history[-1])
         live_plot_spot.plotly_chart(final_plotly_fig, use_container_width=True, key="final_result_plot")
         status_text.success(f"✅ Optimization Complete! Iterations run: {len(st.session_state.history)}")
@@ -351,7 +354,9 @@ if st.session_state.run_finished:
     fig = go.Figure(data=[roof_surface, bottom_surface])
 
     support_depth = -tmax * 1.2
-    for i, row in st.session_state.bc_df.iterrows():
+    
+    # NOTE: Drawing from run_bc_df (the snapshot)
+    for i, row in st.session_state.run_bc_df.iterrows():
         hx, hy = row['Width'] / 2.0, row['Height'] / 2.0
         x_min, x_max = row['X (in)'] - hx, row['X (in)'] + hx
         y_min, y_max = row['Y (in)'] - hy, row['Y (in)'] + hy
@@ -371,11 +376,11 @@ if st.session_state.run_finished:
         ))
 
     fig.add_trace(go.Scatter3d(
-        x=st.session_state.bc_df['X (in)'],
-        y=st.session_state.bc_df['Y (in)'],
-        z=[tmax * 0.1] * len(st.session_state.bc_df),
+        x=st.session_state.run_bc_df['X (in)'],
+        y=st.session_state.run_bc_df['Y (in)'],
+        z=[tmax * 0.1] * len(st.session_state.run_bc_df),
         mode='text',
-        text=[f"S{i+1}" for i in range(len(st.session_state.bc_df))],
+        text=[f"S{i+1}" for i in range(len(st.session_state.run_bc_df))],
         textfont=dict(color="black", size=14, family="Arial Black"),
         showlegend=False,
         hoverinfo='skip'
