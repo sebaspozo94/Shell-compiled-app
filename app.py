@@ -191,20 +191,16 @@ with col_run:
     live_plot_spot = st.empty()
     status_text = st.empty()
 
-    # --- PERFECT SYNC MATPLOTLIB FUNCTION ---
+    # --- FUNCTION 1: FAST MATPLOTLIB FOR ANIMATION ---
     def plot_2d_thickness_mpl(Z_matrix):
         x_range = dimx + 20
         y_range = dimy + 20
         aspect = y_range / x_range
         
-        # 1. Lock figure size
         fig = plt.figure(figsize=(6, 6 * aspect), dpi=100)
-        
-        # 2. Force the axes to fill 100% of the figure (No dynamic padding)
         ax = fig.add_axes([0, 0, 1, 1])
         ax.axis('off')
         
-        # 3. Custom colorscale
         custom_cmap = LinearSegmentedColormap.from_list("custom_blue", ['#cbd5e1', '#2563eb', '#08306b'])
         
         ax.imshow(np.flipud(Z_matrix), cmap=custom_cmap, extent=[0, dimx, 0, dimy], 
@@ -229,12 +225,48 @@ with col_run:
         ax.set_ylim(-10, dimy + 10)
         
         buf = io.BytesIO()
-        # 4. REMOVED bbox_inches='tight' - This stops the dynamic frame-by-frame resizing!
         plt.savefig(buf, format='png', transparent=True)
         plt.close(fig)
         buf.seek(0)
-        
         return buf
+
+    # --- FUNCTION 2: PERFECTLY SIZED PLOTLY FOR FINAL RESULT ---
+    def plot_2d_thickness_plotly(Z_matrix):
+        fig = go.Figure()
+        
+        # Add heatmap using exact Plotly colorscale
+        custom_colorscale_plotly = [[0.0, '#cbd5e1'], [0.5, '#2563eb'], [1.0, '#08306b']]
+        fig.add_trace(go.Heatmap(
+            z=np.flipud(Z_matrix),
+            x=np.linspace(0, dimx, Z_matrix.shape[1]),
+            y=np.linspace(0, dimy, Z_matrix.shape[0]),
+            colorscale=custom_colorscale_plotly,
+            zmin=0, zmax=tmax, showscale=False, hoverinfo='skip'
+        ))
+        
+        # Add dashed border
+        fig.add_shape(type="rect", x0=0, y0=0, x1=dimx, y1=dimy, 
+                      line=dict(color="#0f172a", width=2, dash="dash"), fillcolor="rgba(0,0,0,0)")
+        
+        # Add Supports overlaying the heatmap
+        for i, row in st.session_state.bc_df.iterrows():
+            hx, hy = row['Width'] / 2.0, row['Height'] / 2.0
+            x_min, x_max = row['X (in)'] - hx, row['X (in)'] + hx
+            y_min, y_max = row['Y (in)'] - hy, row['Y (in)'] + hy
+            
+            fig.add_shape(type="rect", x0=x_min, y0=y_min, x1=x_max, y1=y_max, 
+                          line=dict(color='black', width=1), fillcolor='rgba(0,0,0,0.3)')
+            fig.add_annotation(x=row['X (in)'], y=row['Y (in)'], text=f"S{i+1}", showarrow=False, 
+                               font=dict(color="black", size=11, family="Arial Black"))
+            
+        # Match the EXACT layout settings of the left column boundary plot
+        fig.update_layout(
+            autosize=True,
+            xaxis=dict(range=[-10, dimx+10], constrain='domain'), 
+            yaxis=dict(range=[-10, dimy+10], scaleanchor="x", scaleratio=1, constrain='domain'), 
+            margin=dict(l=0, r=0, t=0, b=0), showlegend=False
+        )
+        return fig
 
     if run_pressed:
         if len(BCMatrix) == 0:
@@ -244,9 +276,8 @@ with col_run:
             target_volume = (total_area * tmin) + (vol_frac * total_area * (tmax - tmin))
             
             def update_live_view(current_it, current_ch, current_Z):
+                # 1. LIVE ANIMATION: Render using Matplotlib for fast, blink-free speed
                 img_buffer = plot_2d_thickness_mpl(current_Z)
-                # If you DONT want the image to stretch when you manually drag the browser window wider, 
-                # change use_container_width to False here:
                 live_plot_spot.image(img_buffer, use_container_width=True) 
                 status_text.info(f"⚙️ Optimizing... Iteration: {current_it}")
 
@@ -261,9 +292,9 @@ with col_run:
                 st.rerun()
 
     if st.session_state.run_finished and st.session_state.history is not None:
-        final_img_buffer = plot_2d_thickness_mpl(st.session_state.history[-1])
-        # And change use_container_width to False here:
-        live_plot_spot.image(final_img_buffer, use_container_width=True)
+        # 2. END OF RUN SWAP: Replace the image with the perfectly matched Plotly Widget
+        final_plotly_fig = plot_2d_thickness_plotly(st.session_state.history[-1])
+        live_plot_spot.plotly_chart(final_plotly_fig, use_container_width=True, key="final_result_plot")
         status_text.success(f"✅ Optimization Complete! Iterations run: {len(st.session_state.history)}")
 
 
@@ -378,4 +409,3 @@ if st.session_state.run_finished:
 
     stl_data = generate_stl(X_mesh, Y_mesh, Z_plot_neg)
     st.download_button(label="📥 Download as .STL File", data=stl_data, file_name=f"Optimized_Slab_Iter{idx}.stl", mime="model/stl", type="primary")
-
