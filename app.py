@@ -51,7 +51,6 @@ if "bc_df" not in st.session_state:
 if "run_bc_df" not in st.session_state:
     st.session_state.run_bc_df = st.session_state.bc_df.copy()
     
-# NEW: Session state for the label toggle
 if "show_labels" not in st.session_state:
     st.session_state.show_labels = False
 
@@ -125,7 +124,7 @@ with col_bc:
         fig2d.add_shape(type="rect", x0=row['X (in)']-hx, y0=row['Y (in)']-hy, x1=row['X (in)']+hx, y1=row['Y (in)']+hy, 
                         line=dict(color=color, width=2), fillcolor=color, opacity=0.6)
         
-        # Only draw the text if the checkbox is active
+        # Labels are shown ONLY here in the input BC map, controlled by the checkbox
         if st.session_state.show_labels:
             fig2d.add_annotation(x=row['X (in)'], y=row['Y (in)'], text=f"S{i+1}", showarrow=False, 
                                  font=dict(color="black", size=11, family="Arial Black"))
@@ -174,11 +173,11 @@ with col_bc:
             if to_drop:
                 st.session_state.bc_df = st.session_state.bc_df.drop(to_drop).reset_index(drop=True)
                 st.rerun()
-
-    # NEW: Toggle placed exactly right before the coordinates table
-    st.checkbox("🏷️ Show Support Identifiers", key="show_labels")
                 
     with st.expander("📋 View/Edit Support Coordinates", expanded=False):
+        # NEW LOCATION: Toggle inside the expander, right before the table
+        st.checkbox("🏷️ Show Support Identifiers", key="show_labels")
+        
         display_df = st.session_state.bc_df.copy()
         display_df.insert(0, "ID", [f"S{i+1}" for i in range(len(display_df))])
         
@@ -230,11 +229,7 @@ with col_run:
             support = patches.Rectangle((x_min, y_min), row['Width'], row['Height'], 
                                         linewidth=1, edgecolor='darkred', facecolor='red', alpha=0.5)
             ax.add_patch(support)
-            
-            # Only draw the text if the checkbox is active
-            if st.session_state.show_labels:
-                ax.text(row['X (in)'], row['Y (in)'], f"S{i+1}", color='black', 
-                        ha='center', va='center', fontweight='bold', fontsize=10)
+            # Labels permanently removed from this plot
             
         ax.set_xlim(-10, dimx + 10)
         ax.set_ylim(-10, dimy + 10)
@@ -267,11 +262,7 @@ with col_run:
             
             fig.add_shape(type="rect", x0=x_min, y0=y_min, x1=x_max, y1=y_max, 
                           line=dict(color='red', width=1), fillcolor='rgba(255,0,0,0.4)')
-            
-            # Only draw the text if the checkbox is active
-            if st.session_state.show_labels:
-                fig.add_annotation(x=row['X (in)'], y=row['Y (in)'], text=f"S{i+1}", showarrow=False, 
-                                   font=dict(color="black", size=11, family="Arial Black"))
+            # Labels permanently removed from this plot
             
         fig.update_layout(
             autosize=True,
@@ -383,19 +374,7 @@ if st.session_state.run_finished:
             name=f"Support S{i+1}",
             showlegend=False
         ))
-
-    # Only draw the 3D text if the checkbox is active
-    if st.session_state.show_labels:
-        fig.add_trace(go.Scatter3d(
-            x=st.session_state.run_bc_df['X (in)'],
-            y=st.session_state.run_bc_df['Y (in)'],
-            z=[tmax * 0.1] * len(st.session_state.run_bc_df),
-            mode='text',
-            text=[f"S{i+1}" for i in range(len(st.session_state.run_bc_df))],
-            textfont=dict(color="black", size=14, family="Arial Black"),
-            showlegend=False,
-            hoverinfo='skip'
-        ))
+    # Labels permanently removed from this 3D plot
     
     fig.update_layout(
         uirevision=st.session_state.view_rev, 
