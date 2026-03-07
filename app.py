@@ -320,7 +320,7 @@ if st.session_state.run_finished:
             k=[0, 7, 2, 3, 6, 7, 1, 1, 5, 5, 7, 6],
             
             color='red', 
-            opacity=0.1, 
+            opacity=0.8, 
             flatshading=True,
             showlegend=False
         ))
@@ -366,6 +366,7 @@ if st.session_state.run_finished:
 
     stl_data = generate_stl(X_mesh, Y_mesh, Z_plot_neg)
     st.download_button(label="📥 Download as .STL File", data=stl_data, file_name=f"Optimized_Slab_Iter{idx}.stl", mime="model/stl", type="primary")
+
 
 
 
