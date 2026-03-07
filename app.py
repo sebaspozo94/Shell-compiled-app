@@ -93,22 +93,18 @@ st.markdown("---")
 # ==========================================
 st.markdown('<div class="section-header">🎛️ Boundary Conditions & Solver</div>', unsafe_allow_html=True)
 
-# Split the layout into two columns
 col_bc, col_run = st.columns(2)
 
 # --- 3A. BOUNDARY CONDITIONS COLUMN ---
 with col_bc:
-    # Initialize session state keys for toggles
     if 'add_t' not in st.session_state: st.session_state.add_t = False
     if 'del_t' not in st.session_state: st.session_state.del_t = False
 
     def on_add_toggle():
-        if st.session_state.add_t:
-            st.session_state.del_t = False
+        if st.session_state.add_t: st.session_state.del_t = False
 
     def on_del_toggle():
-        if st.session_state.del_t:
-            st.session_state.add_t = False
+        if st.session_state.del_t: st.session_state.add_t = False
 
     col_t1, col_t2 = st.columns(2)
     add_mode = col_t1.toggle("🖱️ Click to ADD Support", key="add_t", on_change=on_add_toggle)
@@ -140,7 +136,6 @@ with col_bc:
         hoverinfo='text', text="Click here", name="Grid"
     ))
 
-    # Incorporating the domain constraint fix so resizing works nicely in columns
     fig2d.update_layout(
         autosize=True,
         xaxis=dict(range=[-10, dimx+10], constrain='domain'), 
@@ -181,11 +176,6 @@ with col_bc:
             | **X / Y (in)** | The center coordinates of the support on the domain. |
             | **Width / Height** | The physical size of the support "patch" in inches. |
             | **Type** | **Pinned:** Restricts movement (XYZ). <br> **Fixed:** Restricts movement and rotation (Moment). |
-            
-            **Pro Tips:**
-            * You can manually type coordinates here to be laser-accurate.
-            * Use the `Delete` key on your keyboard to remove a row.
-            * Click the `+` at the bottom of the table to add a support manually.
             """)
         display_df = st.session_state.bc_df.copy()
         display_df.insert(0, "ID", [f"S{i+1}" for i in range(len(display_df))])
@@ -201,43 +191,47 @@ with col_bc:
 
 # --- 3B. SOLVER / RUN COLUMN ---
 with col_run:
-    st.markdown("<br>", unsafe_allow_html=True) # Adds a little vertical padding
+    st.markdown("<br>", unsafe_allow_html=True) 
     
     # Solver prep
     solver_df = st.session_state.bc_df.copy()
     solver_df["Type"] = solver_df["Type"].map({"Pinned": 0, "Fixed": 1})
     BCMatrix = solver_df.to_numpy()
 
+    # Create empty placeholders OUTSIDE the button so they persist
+    status_text = st.empty()
+    live_plot_spot = st.empty()
+
+    # Helper function to keep our drawing code clean and reusable
+    def plot_2d_thickness(Z_matrix):
+        fig_live, ax_live = plt.subplots(figsize=(6, 4))
+        fig_live.patch.set_alpha(0.0)
+        ax_live.axis('off') 
+        
+        im = ax_live.imshow(Z_matrix, cmap=custom_cmap, vmin=0, vmax=tmax, 
+                            extent=[0, dimx, 0, dimy], origin='upper')
+        
+        for i, row in st.session_state.bc_df.iterrows():
+            hx, hy = row['Width'] / 2.0, row['Height'] / 2.0
+            rect = plt.Rectangle((row['X (in)'] - hx, row['Y (in)'] - hy), 
+                                 row['Width'], row['Height'], color='black', alpha=0.3)
+            ax_live.add_patch(rect)
+            ax_live.text(row['X (in)'], row['Y (in)'], f"S{i+1}", 
+                         color='black', ha='center', va='center', fontsize=9, fontweight='bold')
+        return fig_live
+
+    # Button Execution
     if st.button("🚀 Run Optimization", type="primary", use_container_width=True):
         if len(BCMatrix) == 0:
             st.error("Please add at least one support!")
         else:
             total_area = dimx * dimy
             target_volume = (total_area * tmin) + (vol_frac * total_area * (tmax - tmin))
-            status_text = st.empty()
-            live_plot_spot = st.empty()
             
             def update_live_view(current_it, current_ch, current_Z):
-                fig_live, ax_live = plt.subplots(figsize=(6, 4)) # Reduced figsize slightly to fit the column better
-                fig_live.patch.set_alpha(0.0)
-                ax_live.axis('off') 
-                
-                im = ax_live.imshow(current_Z, cmap=custom_cmap, vmin=0, vmax=tmax, 
-                                    extent=[0, dimx, 0, dimy], origin='upper')
-                
-                for i, row in st.session_state.bc_df.iterrows():
-                    hx, hy = row['Width'] / 2.0, row['Height'] / 2.0
-                    rect = plt.Rectangle((row['X (in)'] - hx, row['Y (in)'] - hy), 
-                                         row['Width'], row['Height'], 
-                                         color='black', alpha=0.3)
-                    ax_live.add_patch(rect)
-                    
-                    ax_live.text(row['X (in)'], row['Y (in)'], f"S{i+1}", 
-                                 color='black', ha='center', va='center', 
-                                 fontsize=9, fontweight='bold')
-                
-                live_plot_spot.pyplot(fig_live)
-                plt.close(fig_live)
+                fig_frame = plot_2d_thickness(current_Z)
+                live_plot_spot.pyplot(fig_frame)
+                plt.close(fig_frame)
                 status_text.info(f"⚙️ Optimizing... Iteration: {current_it}")
 
             with st.spinner("Optimizing..."):
@@ -249,6 +243,14 @@ with col_run:
                 )
                 st.session_state.history, st.session_state.X, st.session_state.Y, st.session_state.run_finished = history, X, Y, True
                 st.rerun()
+
+    # Render Final Iteration Results PERMANENTLY if app has finished running
+    if st.session_state.run_finished and st.session_state.history is not None:
+        status_text.success(f"✅ Optimization Complete! Iterations run: {len(st.session_state.history)}")
+        final_frame = plot_2d_thickness(st.session_state.history[-1])
+        live_plot_spot.pyplot(final_frame)
+        plt.close(final_frame)
+
 
 # ==========================================
 # PART 4: INTERACTIVE 3D RESULTS
@@ -288,7 +290,6 @@ if st.session_state.run_finished:
     
     Z_raw = st.session_state.history[idx]
     
-    # FIX MIRRORING: Flip up-down and transpose
     Z_final = np.flipud(Z_raw).T 
     
     x_coords = np.linspace(0, dimx, Z_final.shape[1])
