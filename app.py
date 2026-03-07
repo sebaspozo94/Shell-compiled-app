@@ -69,8 +69,8 @@ with conf_col1:
     with st.expander("📏 Domain & Mesh", expanded=False):
         dimx = st.number_input("Domain X (in)", value=240, step=4, min_value=1)
         dimy = st.number_input("Domain Y (in)", value=192, step=4, min_value=1)
-        nelx = st.number_input("Elements X", value=120, step=4, min_value=1, max_value=500)
-        nely = st.number_input("Elements Y", value=96, step=4, min_value=1, max_value=500)
+        nelx = st.number_input("Elements X", value=120, step=4, min_value=1, max_value=150)
+        nely = st.number_input("Elements Y", value=96, step=4, min_value=1, max_value=150)
 
 with conf_col2:
     with st.expander("🎯 Optimization Settings", expanded=False):
@@ -326,7 +326,7 @@ if st.session_state.run_finished:
         fig.add_trace(go.Mesh3d(
             x=[x_min, x_max, x_max, x_min, x_min, x_max, x_max, x_min],
             y=[y_min, y_min, y_max, y_max, y_min, y_min, y_max, y_max],
-            z=[support_depth, support_depth, support_depth, support_depth, 0, 0, 0, 0],
+            z=[support_depth, support_depth, support_depth, support_depth, tmax * 0.1, tmax * 0.1, tmax * 0.1, tmax * 0.1],
             i=[7, 0, 0, 0, 4, 4, 6, 6, 4, 0, 3, 2],
             j=[3, 4, 1, 2, 5, 6, 5, 2, 0, 1, 6, 3],
             k=[0, 7, 2, 3, 6, 7, 1, 1, 5, 5, 7, 6],
@@ -379,3 +379,4 @@ if st.session_state.run_finished:
     # Pass the fixed matrices to the STL generator
     stl_data = generate_stl(X_mesh, Y_mesh, Z_plot_neg)
     st.download_button(label="📥 Download as .STL File", data=stl_data, file_name=f"Optimized_Slab_Iter{idx}.stl", mime="model/stl", type="primary")
+
