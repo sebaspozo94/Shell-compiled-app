@@ -241,8 +241,8 @@ with col_run:
             
             def update_live_view(current_it, current_ch, current_Z):
                 fig_frame = plot_2d_thickness(current_Z)
-                # Apply key="live_opt_view" to preserve DOM state between frames to stop flickering
-                live_plot_spot.plotly_chart(fig_frame, use_container_width=True, key="live_opt_view") 
+                # Removed the 'key' argument here! The st.empty() placeholder handles the replacement smoothly.
+                live_plot_spot.plotly_chart(fig_frame, use_container_width=True) 
                 status_text.info(f"⚙️ Optimizing... Iteration: {current_it}")
 
             with st.spinner("Optimizing..."):
@@ -258,11 +258,10 @@ with col_run:
     # Render Final Iteration permanently
     if st.session_state.run_finished and st.session_state.history is not None:
         final_frame = plot_2d_thickness(st.session_state.history[-1])
-        # Image rendered permanently on top
-        live_plot_spot.plotly_chart(final_frame, use_container_width=True, key="live_opt_view")
+        # Image rendered permanently on top (Removed the 'key' argument here too)
+        live_plot_spot.plotly_chart(final_frame, use_container_width=True)
         # Text rendered permanently BELOW the image
         status_text.success(f"✅ Optimization Complete! Iterations run: {len(st.session_state.history)}")
-
 
 # ==========================================
 # PART 4: INTERACTIVE 3D RESULTS
@@ -375,3 +374,4 @@ if st.session_state.run_finished:
 
     stl_data = generate_stl(X_mesh, Y_mesh, Z_plot_neg)
     st.download_button(label="📥 Download as .STL File", data=stl_data, file_name=f"Optimized_Slab_Iter{idx}.stl", mime="model/stl", type="primary")
+
