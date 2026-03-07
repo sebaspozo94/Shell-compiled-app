@@ -94,48 +94,38 @@ st.markdown('<div class="section-header">🔍 Interactive Support Setup</div>', 
 # Full width map for precision
 add_mode = st.toggle("🖱️ Click on Map to Add Pinned Support", value=False)
 
-fig2d = go.Figure()
-fig2d.add_shape(type="rect", x0=0, y0=0, x1=dimx, y1=dimy, line=dict(color="#0f172a", width=2, dash="dash"), fillcolor="rgba(0,0,0,0)")
-
-for i, row in st.session_state.bc_df.iterrows():
-    hx, hy = row['Width'] / 2.0, row['Height'] / 2.0
-    color = '#2563eb' if row['Type'] == "Pinned" else '#0f172a' 
-    fig2d.add_shape(type="rect", x0=row['X (in)'] - hx, y0=row['Y (in)'] - hy, x1=row['X (in)'] + hx, y1=row['Y (in)'] + hy, line=dict(color=color, width=2), fillcolor=color, opacity=0.7)
-
-if add_mode:
-    grid_x, grid_y = np.meshgrid(np.arange(0, dimx + 12, 12), np.arange(0, dimy + 12, 12))
-    fig2d.add_trace(go.Scatter(x=grid_x.flatten(), y=grid_y.flatten(), mode='markers', marker=dict(size=6, color='rgba(100, 100, 100, 0.2)'), hoverinfo='none'))
-
-fig2d.update_layout(
-    xaxis=dict(title="X (in)", range=[-10, dimx+10], constrain="domain", gridcolor='#f1f5f9'),
-    yaxis=dict(title="Y (in)", range=[-10, dimy+10], scaleanchor="x", scaleratio=1, constrain="domain", gridcolor='#f1f5f9'),
-    margin=dict(l=0, r=0, t=20, b=0), height=400, showlegend=False, clickmode='event+select', plot_bgcolor='white'
-)
+# ... [Insert your existing fig2d Plotly logic here] ...
 
 event = st.plotly_chart(fig2d, on_select="rerun", selection_mode="points", key="bc_map", use_container_width=True)
 
-if add_mode and event and len(event.selection["points"]) > 0:
-    clicked_pt = event.selection["points"][0]
-    new_x, new_y = clicked_pt["x"], clicked_pt["y"]
-    duplicate = st.session_state.bc_df[(st.session_state.bc_df['X (in)'] == new_x) & (st.session_state.bc_df['Y (in)'] == new_y)]
-    if duplicate.empty:
-        new_row = pd.DataFrame([[new_x, new_y, 4.0, 4.0, "Pinned"]], columns=["X (in)", "Y (in)", "Width", "Height", "Type"])
-        st.session_state.bc_df = pd.concat([st.session_state.bc_df, new_row], ignore_index=True)
-        st.rerun() 
+# ... [Insert your click processing logic here] ...
 
-# Table and Run Button side-by-side
-col_table, col_run = st.columns([2, 1])
-
-with col_table:
-    edited_bc_df = st.data_editor(st.session_state.bc_df, num_rows="dynamic", use_container_width=True, hide_index=True, column_config={"Type": st.column_config.SelectboxColumn("Support Type", options=["Pinned", "Fixed"], required=True)})
+# --- NEW: TABLE AS A DROP MENU ---
+with st.expander("📋 View/Edit Support Coordinates", expanded=False):
+    edited_bc_df = st.data_editor(
+        st.session_state.bc_df, 
+        num_rows="dynamic", 
+        use_container_width=True, 
+        hide_index=True, 
+        column_config={"Type": st.column_config.SelectboxColumn("Support Type", options=["Pinned", "Fixed"], required=True)}
+    )
     if not edited_bc_df.equals(st.session_state.bc_df):
         st.session_state.bc_df = edited_bc_df
         st.rerun()
-    solver_df = edited_bc_df.copy()
-    solver_df["Type"] = solver_df["Type"].map({"Pinned": 0, "Fixed": 1})
-    BCMatrix = solver_df.to_numpy()
 
-with col_run:
+# Prep the matrix for the solver
+solver_df = edited_bc_df.copy()
+solver_df["Type"] = solver_df["Type"].map({"Pinned": 0, "Fixed": 1})
+BCMatrix = solver_df.to_numpy()
+
+# ==========================================
+# SECTION 3: SOLVER & RESULTS
+# ==========================================
+st.markdown("---")
+
+# Centered Run Button
+col_btn_l, col_btn_mid, col_btn_r = st.columns([1, 2, 1])
+with col_btn_mid:
     if st.button("🚀 Run Optimization", type="primary", use_container_width=True):
         if len(BCMatrix) == 0:
             st.error("Please add at least one support!")
@@ -159,7 +149,6 @@ with col_run:
                 X, Y, Thickness, history = logic.run_topology_optimization(dimx, dimy, E, nu, rho, SW_val, BCMatrix, w_u, int(nelx), int(nely), target_volume, rmin, tmin, tmax, int(itmax), progress_callback=update_live_view)
                 st.session_state.history, st.session_state.X, st.session_state.Y, st.session_state.run_finished = history, X, Y, True
                 st.rerun()
-
 
 # ==========================================
 # SECTION 3: FULL WIDTH POST-PROCESS
@@ -278,5 +267,6 @@ if st.session_state.run_finished:
         label="📥 Download as .STL File", data=stl_data,
         file_name=f"Optimized_Slab_Iter{idx}.stl", mime="model/stl", type="primary"
     )
+
 
 
