@@ -15,46 +15,19 @@ custom_cmap = LinearSegmentedColormap.from_list("custom_blues", ['#cbd5e1', '#25
 
 st.set_page_config(page_title="Shell Topology Opt", layout="wide")
 
-# --- CUSTOM CSS FOR PORTFOLIO MATCHING ---
+# --- CUSTOM CSS ---
 st.markdown("""
 <style>
-    .main-header {
-        font-size: 2.5rem;
-        font-weight: 800;
-        color: #0f172a;
-        margin-bottom: 0rem;
-    }
-    .tag-container {
-        display: flex;
-        gap: 10px;
-        margin-bottom: 2rem;
-    }
-    .tag {
-        background-color: #f1f5f9;
-        color: #475569;
-        padding: 4px 12px;
-        border-radius: 9999px; 
-        font-size: 0.85rem;
-        font-weight: 500;
-        border: 1px solid #e2e8f0;
-    }
+    .main-header { font-size: 2.5rem; font-weight: 800; color: #0f172a; margin-bottom: 0rem; }
+    .tag-container { display: flex; gap: 10px; margin-bottom: 1.5rem; }
+    .tag { background-color: #f1f5f9; color: #475569; padding: 4px 12px; border-radius: 9999px; font-size: 0.85rem; font-weight: 500; border: 1px solid #e2e8f0; }
+    .section-header { font-size: 1.25rem; font-weight: 700; color: #1e293b; margin-top: 1rem; margin-bottom: 0.5rem; }
 </style>
 """, unsafe_allow_html=True)
 
 # --- APP HEADER ---
 st.markdown('<div class="main-header">Shell Topology Optimization</div>', unsafe_allow_html=True)
-st.markdown("""
-<div class="tag-container">
-    <span class="tag">Optimization</span>
-    <span class="tag">Shell</span>
-    <span class="tag">FEA Engine</span>
-</div>
-""", unsafe_allow_html=True)
-
-with st.expander("🎯 App Objective"):
-    st.markdown("""
-    **Objective:** Distribute a constant amount of material to maximize the stiffness of a shell-type structure under external distributed load and self-weight.
-    """)
+st.markdown('<div class="tag-container"><span class="tag">Optimization</span><span class="tag">Shell</span><span class="tag">FEA Engine</span></div>', unsafe_allow_html=True)
 
 # --- 1. SETUP SESSION STATE ---
 if 'run_finished' not in st.session_state:
@@ -63,147 +36,107 @@ if 'run_finished' not in st.session_state:
     st.session_state.X = None
     st.session_state.Y = None
 
-# Initialize the Boundary Conditions DataFrame into Session State
 if "bc_df" not in st.session_state:
     st.session_state.bc_df = pd.DataFrame(
-        [
-            [48.0, 156.0, 4.0, 4.0, "Pinned"], 
-            [48.0, 36.0, 4.0, 4.0, "Pinned"],  
-            [192.0, 156.0, 4.0, 4.0, "Pinned"], 
-            [192.0, 36.0, 4.0, 4.0, "Pinned"]
-        ],
+        [[48.0, 156.0, 4.0, 4.0, "Pinned"], [48.0, 36.0, 4.0, 4.0, "Pinned"], [192.0, 156.0, 4.0, 4.0, "Pinned"], [192.0, 36.0, 4.0, 4.0, "Pinned"]],
         columns=["X (in)", "Y (in)", "Width", "Height", "Type"]
     )
 
-# --- 2. SIDEBAR INPUTS ---
+# --- 2. SIDEBAR (Materials & Loads Only) ---
 with st.sidebar:
-    st.header("📐 Geometry & Mesh")
-    col1, col2 = st.sidebar.columns(2)
-    dimx = col1.number_input("Domain X (in)", value=240, step=4, min_value=1)
-    dimy = col2.number_input("Domain Y (in)", value=192, step=4, min_value=1)
-    
-    col3, col4 = st.sidebar.columns(2)
-    nelx = col3.number_input("Elements X", value=120, step=4, min_value=1,max_value=150)
-    nely = col4.number_input("Elements Y", value=96, step=4, min_value=1,max_value=150)
-
-    with st.sidebar.expander("🧪 Material Properties"):
-        E = st.number_input("Elastic Modulus (psi)", value=1500000, step=100000)
-        nu = st.slider("Poisson's Ratio (v)", 0.0, 0.5, 0.30)
-        rho = st.number_input("Material Density (p)", value=0.010, format="%.3f")
-        self_weight = st.checkbox("Include Self-Weight", value=True)
+    st.header("🧪 Material Properties")
+    E = st.number_input("Elastic Modulus (psi)", value=1500000, step=100000)
+    nu = st.slider("Poisson's Ratio (v)", 0.0, 0.5, 0.30)
+    rho = st.number_input("Material Density (p)", value=0.010, format="%.3f")
+    self_weight = st.checkbox("Include Self-Weight", value=True)
 
     st.header("⚖️ Loads")
     w_u = st.number_input("Distributed Load (w_u)", value=0.2778)
 
-    st.header("🎯 Optimization Params")
+# ==========================================
+# SECTION 1: GEOMETRY, MESH & OPTIMIZATION PARAMS
+# ==========================================
+st.markdown('<div class="section-header">📐 Model Configuration</div>', unsafe_allow_html=True)
+
+# Row for Mesh and Optimization parameters
+conf_col1, conf_col2, conf_col3 = st.columns([1, 1, 1])
+
+with conf_col1:
+    st.markdown("**Domain & Mesh**")
+    dimx = st.number_input("Domain X (in)", value=240, step=4, min_value=1)
+    dimy = st.number_input("Domain Y (in)", value=192, step=4, min_value=1)
+    nelx = st.number_input("Elements X", value=120, step=4, min_value=1, max_value=150)
+    nely = st.number_input("Elements Y", value=96, step=4, min_value=1, max_value=150)
+
+with conf_col2:
+    st.markdown("**Optimization Settings**")
     vol_frac = st.slider("Volume Fraction", 0.05, 1.0, 0.3)
     rmin = st.number_input("Filter Radius (rmin)", value=5.0)
-    tmin = st.number_input("Min Thickness", value=2.0)
-    tmax = st.number_input("Max Thickness", value=12.0)
     itmax = st.number_input("Max Iterations", value=50)
 
+with conf_col3:
+    st.markdown("**Thickness Limits**")
+    tmin = st.number_input("Min Thickness", value=2.0)
+    tmax = st.number_input("Max Thickness", value=12.0)
+
+st.markdown("---")
 
 # ==========================================
-# SECTION 1: FULL WIDTH INTERACTIVE MAP
+# SECTION 2: INTERACTIVE BOUNDARY CONDITIONS
 # ==========================================
-st.markdown("### 🔍 Interactive Geometry & Support Setup")
+st.markdown('<div class="section-header">🔍 Interactive Support Setup</div>', unsafe_allow_html=True)
 
-# Setup the Interactive Map
+# Full width map for precision
 add_mode = st.toggle("🖱️ Click on Map to Add Pinned Support", value=False)
 
 fig2d = go.Figure()
+fig2d.add_shape(type="rect", x0=0, y0=0, x1=dimx, y1=dimy, line=dict(color="#0f172a", width=2, dash="dash"), fillcolor="rgba(0,0,0,0)")
 
-# Draw the main slab boundary
-fig2d.add_shape(
-    type="rect", x0=0, y0=0, x1=dimx, y1=dimy, 
-    line=dict(color="#0f172a", width=2, dash="dash"), fillcolor="rgba(0,0,0,0)"
-)
-
-# Draw existing supports
 for i, row in st.session_state.bc_df.iterrows():
     hx, hy = row['Width'] / 2.0, row['Height'] / 2.0
     color = '#2563eb' if row['Type'] == "Pinned" else '#0f172a' 
-    
-    fig2d.add_shape(
-        type="rect", x0=row['X (in)'] - hx, y0=row['Y (in)'] - hy, x1=row['X (in)'] + hx, y1=row['Y (in)'] + hy,
-        line=dict(color=color, width=2), fillcolor=color, opacity=0.7
-    )
+    fig2d.add_shape(type="rect", x0=row['X (in)'] - hx, y0=row['Y (in)'] - hy, x1=row['X (in)'] + hx, y1=row['Y (in)'] + hy, line=dict(color=color, width=2), fillcolor=color, opacity=0.7)
 
-# If Add Mode is ON, create a clickable grid
 if add_mode:
     grid_x, grid_y = np.meshgrid(np.arange(0, dimx + 12, 12), np.arange(0, dimy + 12, 12))
-    fig2d.add_trace(go.Scatter(
-        x=grid_x.flatten(), y=grid_y.flatten(), mode='markers',
-        marker=dict(size=6, color='rgba(100, 100, 100, 0.4)'),
-        hoverinfo='none'
-    ))
+    fig2d.add_trace(go.Scatter(x=grid_x.flatten(), y=grid_y.flatten(), mode='markers', marker=dict(size=6, color='rgba(100, 100, 100, 0.2)'), hoverinfo='none'))
 
-# Format the plot with fixed scaling
 fig2d.update_layout(
-    xaxis=dict(title="X (in)", range=[-10, dimx+10], constrain="domain", gridcolor='#e2e8f0'),
-    yaxis=dict(title="Y (in)", range=[-10, dimy+10], scaleanchor="x", scaleratio=1, constrain="domain", gridcolor='#e2e8f0'),
-    margin=dict(l=10, r=10, t=20, b=10), 
-    showlegend=False, 
-    clickmode='event+select',
-    plot_bgcolor='white'
+    xaxis=dict(title="X (in)", range=[-10, dimx+10], constrain="domain", gridcolor='#f1f5f9'),
+    yaxis=dict(title="Y (in)", range=[-10, dimy+10], scaleanchor="x", scaleratio=1, constrain="domain", gridcolor='#f1f5f9'),
+    margin=dict(l=0, r=0, t=20, b=0), height=400, showlegend=False, clickmode='event+select', plot_bgcolor='white'
 )
 
-# Render the plot in full width
 event = st.plotly_chart(fig2d, on_select="rerun", selection_mode="points", key="bc_map", use_container_width=True)
 
-# Process the click to add a new support
 if add_mode and event and len(event.selection["points"]) > 0:
     clicked_pt = event.selection["points"][0]
     new_x, new_y = clicked_pt["x"], clicked_pt["y"]
-    
-    # Check for duplicates
     duplicate = st.session_state.bc_df[(st.session_state.bc_df['X (in)'] == new_x) & (st.session_state.bc_df['Y (in)'] == new_y)]
     if duplicate.empty:
         new_row = pd.DataFrame([[new_x, new_y, 4.0, 4.0, "Pinned"]], columns=["X (in)", "Y (in)", "Width", "Height", "Type"])
         st.session_state.bc_df = pd.concat([st.session_state.bc_df, new_row], ignore_index=True)
         st.rerun() 
 
-st.markdown("<br>", unsafe_allow_html=True)
-
-
-# ==========================================
-# SECTION 2: HALF TABLE / HALF BUTTON
-# ==========================================
-col_table, col_run = st.columns(2)
+# Table and Run Button side-by-side
+col_table, col_run = st.columns([2, 1])
 
 with col_table:
-    st.markdown("**Fine-tune Boundary Conditions:**")
-    # Data Editor
-    edited_bc_df = st.data_editor(
-        st.session_state.bc_df, 
-        num_rows="dynamic", 
-        use_container_width=True,
-        hide_index=True,
-        column_config={
-            "Type": st.column_config.SelectboxColumn("Support Type", options=["Pinned", "Fixed"], required=True)
-        }
-    )
-    
-    # Sync Table edits back to Map
+    edited_bc_df = st.data_editor(st.session_state.bc_df, num_rows="dynamic", use_container_width=True, hide_index=True, column_config={"Type": st.column_config.SelectboxColumn("Support Type", options=["Pinned", "Fixed"], required=True)})
     if not edited_bc_df.equals(st.session_state.bc_df):
         st.session_state.bc_df = edited_bc_df
         st.rerun()
-    
-    # Convert for the solver
     solver_df = edited_bc_df.copy()
     solver_df["Type"] = solver_df["Type"].map({"Pinned": 0, "Fixed": 1})
     BCMatrix = solver_df.to_numpy()
 
 with col_run:
-    st.markdown("**Launch Solver:**")
-    # RUN OPTIMIZATION BUTTON
     if st.button("🚀 Run Optimization", type="primary", use_container_width=True):
         if len(BCMatrix) == 0:
-            st.error("Please add at least one support condition before running!")
+            st.error("Please add at least one support!")
         else:
             total_area = dimx * dimy
             target_volume = (total_area * tmin) + (vol_frac * total_area * (tmax - tmin))
-            
             status_text = st.empty()
             live_plot_spot = st.empty()
             
@@ -211,29 +144,15 @@ with col_run:
                 fig_live, ax_live = plt.subplots(figsize=(10, 4))
                 fig_live.patch.set_alpha(0.0)
                 ax_live.axis('off') 
-                ext = [0, dimx, 0, dimy] 
-                im = ax_live.imshow(current_Z, cmap=custom_cmap, vmin=0, vmax=tmax, extent=ext, origin='upper')
-                plt.colorbar(im, ax=ax_live, label='Thickness (in)')
+                im = ax_live.imshow(current_Z, cmap=custom_cmap, vmin=0, vmax=tmax, extent=[0, dimx, 0, dimy], origin='upper')
                 live_plot_spot.pyplot(fig_live)
                 plt.close(fig_live)
+                status_text.info(f"⚙️ Optimizing... Iteration: {current_it}")
 
-                status_text.info(f"⚙️ Optimizing... Iteration: {current_it} | Max Displacement: {current_ch:.4f} in")
-
-            # Check if SW is defined (using self_weight from sidebar)
-            SW_val = 1 if self_weight else 0
-
-            with st.spinner("Crunching the numbers..."):
-                X, Y, Thickness, history = logic.run_topology_optimization(
-                    dimx, dimy, E, nu, rho, SW_val, BCMatrix, w_u, 
-                    int(nelx), int(nely), target_volume, rmin, tmin, tmax, int(itmax),
-                    progress_callback=update_live_view  
-                )
-                
-                status_text.success("✅ Optimization Complete!")
-                st.session_state.history = history
-                st.session_state.X = X
-                st.session_state.Y = Y
-                st.session_state.run_finished = True
+            with st.spinner("Optimizing..."):
+                SW_val = 1 if self_weight else 0
+                X, Y, Thickness, history = logic.run_topology_optimization(dimx, dimy, E, nu, rho, SW_val, BCMatrix, w_u, int(nelx), int(nely), target_volume, rmin, tmin, tmax, int(itmax), progress_callback=update_live_view)
+                st.session_state.history, st.session_state.X, st.session_state.Y, st.session_state.run_finished = history, X, Y, True
                 st.rerun()
 
 
@@ -354,3 +273,4 @@ if st.session_state.run_finished:
         label="📥 Download as .STL File", data=stl_data,
         file_name=f"Optimized_Slab_Iter{idx}.stl", mime="model/stl", type="primary"
     )
+
