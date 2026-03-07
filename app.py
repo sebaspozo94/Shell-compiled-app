@@ -290,7 +290,7 @@ if st.session_state.run_finished:
     if len(y_1d) == Z_plot.shape[0] + 1: y_1d = (y_1d[:-1] + y_1d[1:]) / 2.0
     X_mesh, Y_mesh = np.meshgrid(x_1d, y_1d)
 
-    Z_plot_neg = -Z_plot 
+    Z_plot_neg = -Z_plot.T 
     custom_colorscale = [[0.0, '#08306b'], [0.4, '#2563eb'], [1.0, '#cbd5e1']]
 
     roof_surface = go.Surface(z=np.zeros_like(Z_plot_neg), x=X_mesh, y=Y_mesh, colorscale=[[0, '#cbd5e1'], [1, '#cbd5e1']], showscale=False, hoverinfo='skip')
@@ -364,6 +364,7 @@ if st.session_state.run_finished:
 
     stl_data = generate_stl(X_mesh, Y_mesh, Z_plot_neg)
     st.download_button(label="📥 Download as .STL File", data=stl_data, file_name=f"Optimized_Slab_Iter{idx}.stl", mime="model/stl", type="primary")
+
 
 
 
