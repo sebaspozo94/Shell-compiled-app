@@ -90,16 +90,30 @@ st.markdown("---")
 # ==========================================
 st.markdown('<div class="section-header">🔍 Interactive Support Setup</div>', unsafe_allow_html=True)
 
-add_mode = st.toggle("🖱️ Click on Map to Add Pinned Support", value=False)
+# 1. Dual Toggle Row
+col_t1, col_t2 = st.columns(2)
+add_mode = col_t1.toggle("🖱️ Click to ADD Support", value=False)
+del_mode = col_t2.toggle("🗑️ Click to DELETE Support", value=False)
+
+if add_mode and del_mode:
+    st.warning("Please select only one mode (Add or Delete) at a time.")
 
 fig2d = go.Figure()
 fig2d.add_shape(type="rect", x0=0, y0=0, x1=dimx, y1=dimy, line=dict(color="#0f172a", width=2, dash="dash"), fillcolor="rgba(0,0,0,0)")
 
+# 2. Draw supports with Identifiers (Labels)
 for i, row in st.session_state.bc_df.iterrows():
     hx, hy = row['Width'] / 2.0, row['Height'] / 2.0
     color = '#2563eb' if row['Type'] == "Pinned" else '#0f172a' 
-    fig2d.add_shape(type="rect", x0=row['X (in)'] - hx, y0=row['Y (in)'] - hy, x1=row['X (in)'] + hx, y1=row['Y (in)'] + hy, line=dict(color=color, width=2), fillcolor=color, opacity=0.7)
+    
+    # The Shape
+    fig2d.add_shape(type="rect", x0=row['X (in)'] - hx, y0=row['Y (in)'] - hy, x1=row['X (in)'] + hx, y1=row['Y (in)'] + hy, 
+                   line=dict(color=color, width=2), fillcolor=color, opacity=0.7)
+    
+    # The Identifier Label (S1, S2...)
+    fig2d.add_annotation(x=row['X (in)'], y=row['Y (in)'], text=f"S{i+1}", showarrow=False, font=dict(color="white", size=10))
 
+# Clickable Grid for Adding
 if add_mode:
     grid_x, grid_y = np.meshgrid(np.arange(0, dimx + 12, 12), np.arange(0, dimy + 12, 12))
     fig2d.add_trace(go.Scatter(x=grid_x.flatten(), y=grid_y.flatten(), mode='markers', marker=dict(size=6, color='rgba(100, 100, 100, 0.2)'), hoverinfo='none'))
@@ -107,19 +121,30 @@ if add_mode:
 fig2d.update_layout(
     xaxis=dict(title="X (in)", range=[-10, dimx+10], constrain="domain", gridcolor='#f1f5f9'),
     yaxis=dict(title="Y (in)", range=[-10, dimy+10], scaleanchor="x", scaleratio=1, constrain="domain", gridcolor='#f1f5f9'),
-    margin=dict(l=0, r=0, t=20, b=0), height=400, showlegend=False, clickmode='event+select', plot_bgcolor='white'
+    margin=dict(l=0, r=0, t=20, b=0), height=450, showlegend=False, clickmode='event+select', plot_bgcolor='white'
 )
 
 event = st.plotly_chart(fig2d, on_select="rerun", selection_mode="points", key="bc_map", use_container_width=True)
 
-if add_mode and event and event.get("selection") and len(event["selection"]["points"]) > 0:
+# 3. Handle Add/Delete Logic
+if event and event.get("selection") and len(event["selection"]["points"]) > 0:
     clicked_pt = event["selection"]["points"][0]
-    new_x, new_y = clicked_pt["x"], clicked_pt["y"]
-    duplicate = st.session_state.bc_df[(st.session_state.bc_df['X (in)'] == new_x) & (st.session_state.bc_df['Y (in)'] == new_y)]
-    if duplicate.empty:
-        new_row = pd.DataFrame([[float(new_x), float(new_y), 4.0, 4.0, "Pinned"]], columns=["X (in)", "Y (in)", "Width", "Height", "Type"])
-        st.session_state.bc_df = pd.concat([st.session_state.bc_df, new_row], ignore_index=True)
-        st.rerun() 
+    cx, cy = clicked_pt["x"], clicked_pt["y"]
+    
+    if add_mode:
+        duplicate = st.session_state.bc_df[(st.session_state.bc_df['X (in)'] == cx) & (st.session_state.bc_df['Y (in)'] == cy)]
+        if duplicate.empty:
+            new_row = pd.DataFrame([[float(cx), float(cy), 4.0, 4.0, "Pinned"]], columns=["X (in)", "Y (in)", "Width", "Height", "Type"])
+            st.session_state.bc_df = pd.concat([st.session_state.bc_df, new_row], ignore_index=True)
+            st.rerun()
+    
+    elif del_mode:
+        # Delete if the click is within the bounds of an existing support
+        for i, row in st.session_state.bc_df.iterrows():
+            hx, hy = row['Width']/2, row['Height']/2
+            if (row['X (in)']-hx <= cx <= row['X (in)']+hx) and (row['Y (in)']-hy <= cy <= row['Y (in)']+hy):
+                st.session_state.bc_df = st.session_state.bc_df.drop(i).reset_index(drop=True)
+                st.rerun()
 
 with st.expander("📋 View/Edit Support Coordinates", expanded=False):
     # Nested Drop Menu for Instructions
@@ -136,18 +161,19 @@ with st.expander("📋 View/Edit Support Coordinates", expanded=False):
         * Use the `Delete` key on your keyboard to remove a row.
         * Click the `+` at the bottom of the table to add a support manually.
         """)
-        
+    display_df = st.session_state.bc_df.copy()
+    display_df.insert(0, "ID", [f"S{i+1}" for i in range(len(display_df))])
+    
     edited_bc_df = st.data_editor(
-        st.session_state.bc_df, 
-        num_rows="dynamic", 
-        use_container_width=True, 
-        hide_index=True, 
-        column_config={"Type": st.column_config.SelectboxColumn("Support Type", options=["Pinned", "Fixed"], required=True)}
+        display_df, 
+        num_rows="dynamic", use_container_width=True, hide_index=True, 
+        column_config={"ID": st.column_config.TextColumn(disabled=True), "Type": st.column_config.SelectboxColumn("Type", options=["Pinned", "Fixed"])}
     )
-    if not edited_bc_df.equals(st.session_state.bc_df):
-        st.session_state.bc_df = edited_bc_df
+    # Sync back (excluding the ID column)
+    if not edited_bc_df.drop(columns=["ID"]).equals(st.session_state.bc_df):
+        st.session_state.bc_df = edited_bc_df.drop(columns=["ID"])
         st.rerun()
-
+        
 # Solver prep
 solver_df = st.session_state.bc_df.copy()
 solver_df["Type"] = solver_df["Type"].map({"Pinned": 0, "Fixed": 1})
@@ -230,6 +256,17 @@ if st.session_state.run_finished:
     bottom_surface = go.Surface(z=Z_plot_neg, x=X_mesh, y=Y_mesh, colorscale=custom_colorscale, cmin=-tmax, cmax=0, colorbar=dict(title='Thickness (in)'))
 
     fig = go.Figure(data=[roof_surface, bottom_surface])
+
+    # 4. Add Supports to 3D Plot
+    for i, row in st.session_state.bc_df.iterrows():
+        hx, hy = row['Width'] / 2.0, row['Height'] / 2.0
+        # Create a "Block" at the support location
+        fig.add_trace(go.Mesh3d(
+            x=[row['X (in)']-hx, row['X (in)']+hx, row['X (in)']+hx, row['X (in)']-hx, row['X (in)']-hx, row['X (in)']+hx, row['X (in)']+hx, row['X (in)']-hx],
+            y=[row['Y (in)']-hy, row['Y (in)']-hy, row['Y (in)']+hy, row['Y (in)']+hy, row['Y (in)']-hy, row['Y (in)']-hy, row['Y (in)']+hy, row['Y (in)']+hy],
+            z=[0, 0, 0, 0, -tmax*1.2, -tmax*1.2, -tmax*1.2, -tmax*1.2],
+            color='red', opacity=0.5, name=f"Support S{i+1}"
+        ))
     fig.update_layout(
         uirevision=st.session_state.view_rev, 
         scene=dict(
@@ -258,4 +295,5 @@ if st.session_state.run_finished:
 
     stl_data = generate_stl(X_mesh, Y_mesh, Z_plot_neg)
     st.download_button(label="📥 Download as .STL File", data=stl_data, file_name=f"Optimized_Slab_Iter{idx}.stl", mime="model/stl", type="primary")
+
 
