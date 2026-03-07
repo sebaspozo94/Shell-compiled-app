@@ -256,21 +256,42 @@ with col_btn_mid:
 
 if st.session_state.run_finished:
     st.markdown('<div class="section-header">🕒 Interactive 3D Results</div>', unsafe_allow_html=True)
+    steps = len(st.session_state.history)
     
-    # 1. Prepare Data and Fix Mirroring
+    # 1. Initialize camera and scale states
+    if "cam_eye" not in st.session_state: st.session_state.cam_eye = dict(x=1.2, y=-1.5, z=-0.8) 
+    if "cam_up" not in st.session_state: st.session_state.cam_up = dict(x=0, y=0, z=1) 
+    if "z_scale_val" not in st.session_state: st.session_state.z_scale_val = int(100*tmax/max(dimx, dimy))
+    if "view_rev" not in st.session_state: st.session_state.view_rev = 0
+
+    # 2. Define the Slider FIRST (Fixes the NameError)
+    col_slider, col_scale = st.columns([2, 1])
+    with col_slider: 
+        idx = st.slider("Iteration History", 0, steps - 1, steps - 1)
+    with col_scale: 
+        z_scale_pct = st.slider("Visual Z-Scale (%)", 0, 100, key="z_scale_val")
+
+    # 3. View Control Buttons
+    view_cols = st.columns(5)
+    if view_cols[0].button("⬇️ Bottom (XY)"):
+        st.session_state.cam_eye, st.session_state.cam_up = dict(x=0, y=0, z=-2.5), dict(x=0, y=1, z=0)
+        st.session_state.view_rev += 1
+        st.rerun()
+    # ... (rest of your view buttons follow same pattern)
+
+    # 4. Prepare Data and Fix Mirroring
     Z_plot = st.session_state.history[idx]
     
-    # TRANSPOSE Z if the material appears mirrored across the 45-degree line
-    # This aligns matrix columns to X and matrix rows to Y
+    # Transpose fixes the 45-degree mirroring issue
     Z_final = Z_plot.T 
     
     x_coords = np.linspace(0, dimx, Z_final.shape[1])
     y_coords = np.linspace(0, dimy, Z_final.shape[0])
     X_mesh, Y_mesh = np.meshgrid(x_coords, y_coords)
 
-    Z_plot_neg = -Z_final  # Optimized thickness goes "down"
+    Z_plot_neg = -Z_final
     
-    # 2. Build the Surfaces
+    # 5. Build Surfaces
     roof_surface = go.Surface(
         z=np.zeros_like(Z_plot_neg), x=X_mesh, y=Y_mesh, 
         colorscale=[[0, '#cbd5e1'], [1, '#cbd5e1']], showscale=False, opacity=0.9
@@ -283,7 +304,7 @@ if st.session_state.run_finished:
 
     fig = go.Figure(data=[roof_surface, bottom_surface])
 
-    # 3. Add Extruded Supports (1.2x Max Thickness)
+    # 6. Add Extruded Supports (1.2x Depth)
     support_depth = -tmax * 1.2 
     for i, row in st.session_state.bc_df.iterrows():
         hx, hy = row['Width'] / 2.0, row['Height'] / 2.0
@@ -300,7 +321,7 @@ if st.session_state.run_finished:
             color='black', opacity=0.3, flatshading=True, showlegend=False
         ))
 
-    # 4. Add Black Text Labels (0.1 * tmax positive height)
+    # 7. Add Floating Text Labels (0.1 * tmax positive)
     fig.add_trace(go.Scatter3d(
         x=st.session_state.bc_df['X (in)'],
         y=st.session_state.bc_df['Y (in)'],
@@ -311,7 +332,7 @@ if st.session_state.run_finished:
         showlegend=False
     ))
 
-    # 5. Scene Configuration
+    # 8. Final Scene Layout
     fig.update_layout(
         scene=dict(
             xaxis=dict(range=[0, dimx], title='X (in)'),
@@ -339,6 +360,7 @@ if st.session_state.run_finished:
 
     stl_data = generate_stl(X_mesh, Y_mesh, Z_plot_neg)
     st.download_button(label="📥 Download as .STL File", data=stl_data, file_name=f"Optimized_Slab_Iter{idx}.stl", mime="model/stl", type="primary")
+
 
 
 
