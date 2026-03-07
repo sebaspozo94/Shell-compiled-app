@@ -256,52 +256,35 @@ with col_btn_mid:
 
 if st.session_state.run_finished:
     st.markdown('<div class="section-header">🕒 Interactive 3D Results</div>', unsafe_allow_html=True)
-    steps = len(st.session_state.history)
     
-    if "cam_eye" not in st.session_state: st.session_state.cam_eye = dict(x=1.2, y=-1.5, z=-0.8) 
-    if "cam_up" not in st.session_state: st.session_state.cam_up = dict(x=0, y=0, z=1) 
-    if "z_scale_val" not in st.session_state: st.session_state.z_scale_val = int(100*tmax/max(dimx, dimy))
-    if "view_rev" not in st.session_state: st.session_state.view_rev = 0
-
-    view_cols = st.columns(5)
-    if view_cols[0].button("⬇️ Bottom (XY)"):
-        st.session_state.cam_eye, st.session_state.cam_up = dict(x=0, y=0, z=-2.5), dict(x=0, y=1, z=0)
-        st.session_state.view_rev += 1
-    if view_cols[1].button("➡️ Front (XZ)"):
-        st.session_state.cam_eye, st.session_state.cam_up = dict(x=0, y=-2.5, z=0), dict(x=0, y=0, z=1)
-        st.session_state.view_rev += 1
-    if view_cols[2].button("↗️ Side (YZ)"):
-        st.session_state.cam_eye, st.session_state.cam_up = dict(x=-2.5, y=0, z=0), dict(x=0, y=0, z=1)
-        st.session_state.view_rev += 1
-    if view_cols[3].button("🔄 Reset View"):
-        st.session_state.cam_eye, st.session_state.cam_up = dict(x=1.2, y=-1.5, z=-0.8), dict(x=0, y=0, z=1)
-        st.session_state.view_rev += 1
-    if view_cols[4].button("📏 True Scale (Z)"):
-        st.session_state.z_scale_val = int(100*tmax/max(dimx, dimy))
-        st.session_state.view_rev += 1
-
-    col_slider, col_scale = st.columns([2, 1])
-    with col_slider: idx = st.slider("Iteration History", 0, steps - 1, steps - 1)
-    with col_scale: z_scale_pct = st.slider("Visual Z-Scale (%)", 0, 100, key="z_scale_val")
-    
+    # 1. Prepare Data and Fix Mirroring
     Z_plot = st.session_state.history[idx]
-    x_1d, y_1d = np.unique(st.session_state.X), np.unique(st.session_state.Y)
-    if len(x_1d) == Z_plot.shape[1] + 1: x_1d = (x_1d[:-1] + x_1d[1:]) / 2.0
-    if len(y_1d) == Z_plot.shape[0] + 1: y_1d = (y_1d[:-1] + y_1d[1:]) / 2.0
-    X_mesh, Y_mesh = np.meshgrid(x_1d, y_1d)
+    
+    # TRANSPOSE Z if the material appears mirrored across the 45-degree line
+    # This aligns matrix columns to X and matrix rows to Y
+    Z_final = Z_plot.T 
+    
+    x_coords = np.linspace(0, dimx, Z_final.shape[1])
+    y_coords = np.linspace(0, dimy, Z_final.shape[0])
+    X_mesh, Y_mesh = np.meshgrid(x_coords, y_coords)
 
-    Z_plot_neg = -Z_plot.T 
-    custom_colorscale = [[0.0, '#08306b'], [0.4, '#2563eb'], [1.0, '#cbd5e1']]
-
-    roof_surface = go.Surface(z=np.zeros_like(Z_plot_neg), x=X_mesh, y=Y_mesh, colorscale=[[0, '#cbd5e1'], [1, '#cbd5e1']], showscale=False, hoverinfo='skip')
-    bottom_surface = go.Surface(z=Z_plot_neg, x=X_mesh, y=Y_mesh, colorscale=custom_colorscale, cmin=-tmax, cmax=0, colorbar=dict(title='Thickness (in)'))
+    Z_plot_neg = -Z_final  # Optimized thickness goes "down"
+    
+    # 2. Build the Surfaces
+    roof_surface = go.Surface(
+        z=np.zeros_like(Z_plot_neg), x=X_mesh, y=Y_mesh, 
+        colorscale=[[0, '#cbd5e1'], [1, '#cbd5e1']], showscale=False, opacity=0.9
+    )
+    bottom_surface = go.Surface(
+        z=Z_plot_neg, x=X_mesh, y=Y_mesh, 
+        colorscale=[[0.0, '#08306b'], [0.4, '#2563eb'], [1.0, '#cbd5e1']], 
+        cmin=-tmax, cmax=0, colorbar=dict(title='Thickness (in)')
+    )
 
     fig = go.Figure(data=[roof_surface, bottom_surface])
 
-# 4. Add Extruded Supports to 3D Plot
-    # We use -tmax * 1.2 to make them slightly deeper than the max thickness for visibility
+    # 3. Add Extruded Supports (1.2x Max Thickness)
     support_depth = -tmax * 1.2 
-
     for i, row in st.session_state.bc_df.iterrows():
         hx, hy = row['Width'] / 2.0, row['Height'] / 2.0
         x_min, x_max = row['X (in)'] - hx, row['X (in)'] + hx
@@ -311,20 +294,13 @@ if st.session_state.run_finished:
             x=[x_min, x_max, x_max, x_min, x_min, x_max, x_max, x_min],
             y=[y_min, y_min, y_max, y_max, y_min, y_min, y_max, y_max],
             z=[support_depth, support_depth, support_depth, support_depth, 0, 0, 0, 0],
-            
-            # Triangle mapping for a solid box
             i=[7, 0, 0, 0, 4, 4, 6, 6, 4, 0, 3, 2],
             j=[3, 4, 1, 2, 5, 6, 5, 2, 0, 1, 6, 3],
             k=[0, 7, 2, 3, 6, 7, 1, 1, 5, 5, 7, 6],
-            
-            color='red', 
-            opacity=0.8, 
-            flatshading=True,
-            showlegend=False
+            color='black', opacity=0.3, flatshading=True, showlegend=False
         ))
 
-    # 5. Add 3D Text Labels in Black
-    # Positioned at 0.1 * tmax positive (above the design)
+    # 4. Add Black Text Labels (0.1 * tmax positive height)
     fig.add_trace(go.Scatter3d(
         x=st.session_state.bc_df['X (in)'],
         y=st.session_state.bc_df['Y (in)'],
@@ -332,12 +308,11 @@ if st.session_state.run_finished:
         mode='text',
         text=[f"S{i+1}" for i in range(len(st.session_state.bc_df))],
         textfont=dict(color="black", size=14, family="Arial Black"),
-        showlegend=False,
-        hoverinfo='skip'
+        showlegend=False
     ))
 
+    # 5. Scene Configuration
     fig.update_layout(
-        uirevision=st.session_state.view_rev, 
         scene=dict(
             xaxis=dict(range=[0, dimx], title='X (in)'),
             yaxis=dict(range=[0, dimy], title='Y (in)'),
@@ -345,7 +320,7 @@ if st.session_state.run_finished:
             aspectratio=dict(x=dimx/max(dimx, dimy), y=dimy/max(dimx, dimy), z=z_scale_pct/100.0),
             camera=dict(eye=st.session_state.cam_eye, up=st.session_state.cam_up)
         ),
-        margin=dict(l=0, r=0, b=0, t=0), height=600
+        margin=dict(l=0, r=0, b=0, t=0), height=700
     )
     st.plotly_chart(fig, use_container_width=True)
     
@@ -364,6 +339,7 @@ if st.session_state.run_finished:
 
     stl_data = generate_stl(X_mesh, Y_mesh, Z_plot_neg)
     st.download_button(label="📥 Download as .STL File", data=stl_data, file_name=f"Optimized_Slab_Iter{idx}.stl", mime="model/stl", type="primary")
+
 
 
 
