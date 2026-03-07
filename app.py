@@ -223,7 +223,25 @@ with col_btn_mid:
                 fig_live, ax_live = plt.subplots(figsize=(10, 4))
                 fig_live.patch.set_alpha(0.0)
                 ax_live.axis('off') 
-                im = ax_live.imshow(current_Z, cmap=custom_cmap, vmin=0, vmax=tmax, extent=[0, dimx, 0, dimy], origin='upper')
+                
+                # 1. Draw the thickness map
+                im = ax_live.imshow(current_Z, cmap=custom_cmap, vmin=0, vmax=tmax, 
+                                    extent=[0, dimx, 0, dimy], origin='upper')
+                
+                # 2. Draw black support indicators with black text
+                for i, row in st.session_state.bc_df.iterrows():
+                    hx, hy = row['Width'] / 2.0, row['Height'] / 2.0
+                    # Draw a subtle black box to represent the support zone
+                    rect = plt.Rectangle((row['X (in)'] - hx, row['Y (in)'] - hy), 
+                                         row['Width'], row['Height'], 
+                                         color='black', alpha=0.3)
+                    ax_live.add_patch(rect)
+                    
+                    # Add the S1, S2 identifier in Black text
+                    ax_live.text(row['X (in)'], row['Y (in)'], f"S{i+1}", 
+                                 color='black', ha='center', va='center', 
+                                 fontsize=9, fontweight='bold')
+                
                 live_plot_spot.pyplot(fig_live)
                 plt.close(fig_live)
                 status_text.info(f"⚙️ Optimizing... Iteration: {current_it}")
@@ -282,16 +300,36 @@ if st.session_state.run_finished:
 
     fig = go.Figure(data=[roof_surface, bottom_surface])
 
-    # 4. Add Supports to 3D Plot
+    # 4. Add Extruded Supports to 3D Plot
     for i, row in st.session_state.bc_df.iterrows():
         hx, hy = row['Width'] / 2.0, row['Height'] / 2.0
-        # Create a "Block" at the support location
+        
+        # Create an extruded block from 0 to -tmax
         fig.add_trace(go.Mesh3d(
-            x=[row['X (in)']-hx, row['X (in)']+hx, row['X (in)']+hx, row['X (in)']-hx, row['X (in)']-hx, row['X (in)']+hx, row['X (in)']+hx, row['X (in)']-hx],
-            y=[row['Y (in)']-hy, row['Y (in)']-hy, row['Y (in)']+hy, row['Y (in)']+hy, row['Y (in)']-hy, row['Y (in)']-hy, row['Y (in)']+hy, row['Y (in)']+hy],
-            z=[0, 0, 0, 0, -tmax*1.2, -tmax*1.2, -tmax*1.2, -tmax*1.2],
-            color='red', opacity=0.5, name=f"Support S{i+1}"
+            x=[row['X (in)']-hx, row['X (in)']+hx, row['X (in)']+hx, row['X (in)']-hx, 
+               row['X (in)']-hx, row['X (in)']+hx, row['X (in)']+hx, row['X (in)']-hx],
+            y=[row['Y (in)']-hy, row['Y (in)']-hy, row['Y (in)']+hy, row['Y (in)']+hy, 
+               row['Y (in)']-hy, row['Y (in)']-hy, row['Y (in)']+hy, row['Y (in)']+hy],
+            z=[0, 0, 0, 0, -tmax, -tmax, -tmax, -tmax],
+            color='black', 
+            opacity=0.3, # Transparency applied here
+            flatshading=True,
+            name=f"Support S{i+1}",
+            showlegend=False
         ))
+
+    # 5. Add 3D Text Labels in Black
+    fig.add_trace(go.Scatter3d(
+        x=st.session_state.bc_df['X (in)'],
+        y=st.session_state.bc_df['Y (in)'],
+        z=[1.0] * len(st.session_state.bc_df), # Positioned slightly above Z=0
+        mode='text',
+        text=[f"S{i+1}" for i in range(len(st.session_state.bc_df))],
+        textfont=dict(color="black", size=14, family="Arial Black"),
+        showlegend=False,
+        hoverinfo='skip'
+    ))
+    
     fig.update_layout(
         uirevision=st.session_state.view_rev, 
         scene=dict(
@@ -320,6 +358,7 @@ if st.session_state.run_finished:
 
     stl_data = generate_stl(X_mesh, Y_mesh, Z_plot_neg)
     st.download_button(label="📥 Download as .STL File", data=stl_data, file_name=f"Optimized_Slab_Iter{idx}.stl", mime="model/stl", type="primary")
+
 
 
 
