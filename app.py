@@ -124,7 +124,6 @@ with col_bc:
         fig2d.add_shape(type="rect", x0=row['X (in)']-hx, y0=row['Y (in)']-hy, x1=row['X (in)']+hx, y1=row['Y (in)']+hy, 
                         line=dict(color=color, width=2), fillcolor=color, opacity=0.6)
         
-        # Labels are shown ONLY here in the input BC map, controlled by the checkbox
         if st.session_state.show_labels:
             fig2d.add_annotation(x=row['X (in)'], y=row['Y (in)'], text=f"S{i+1}", showarrow=False, 
                                  font=dict(color="black", size=11, family="Arial Black"))
@@ -175,7 +174,6 @@ with col_bc:
                 st.rerun()
                 
     with st.expander("📋 View/Edit Support Coordinates", expanded=False):
-        # NEW LOCATION: Toggle inside the expander, right before the table
         st.checkbox("🏷️ Show Support Identifiers", key="show_labels")
         
         display_df = st.session_state.bc_df.copy()
@@ -229,7 +227,6 @@ with col_run:
             support = patches.Rectangle((x_min, y_min), row['Width'], row['Height'], 
                                         linewidth=1, edgecolor='darkred', facecolor='red', alpha=0.5)
             ax.add_patch(support)
-            # Labels permanently removed from this plot
             
         ax.set_xlim(-10, dimx + 10)
         ax.set_ylim(-10, dimy + 10)
@@ -262,7 +259,6 @@ with col_run:
             
             fig.add_shape(type="rect", x0=x_min, y0=y_min, x1=x_max, y1=y_max, 
                           line=dict(color='red', width=1), fillcolor='rgba(255,0,0,0.4)')
-            # Labels permanently removed from this plot
             
         fig.update_layout(
             autosize=True,
@@ -350,7 +346,26 @@ if st.session_state.run_finished:
     custom_colorscale = [[0.0, '#08306b'], [0.4, '#2563eb'], [1.0, '#cbd5e1']]
 
     roof_surface = go.Surface(z=np.zeros_like(Z_plot_neg), x=X_mesh, y=Y_mesh, colorscale=[[0, '#cbd5e1'], [1, '#cbd5e1']], showscale=False, hoverinfo='skip')
-    bottom_surface = go.Surface(z=Z_plot_neg, x=X_mesh, y=Y_mesh, colorscale=custom_colorscale, cmin=-tmax, cmax=0, colorbar=dict(title='Thickness (in)'))
+    
+    # NEW: Configure colorbar to be horizontal, smaller, and placed at the top!
+    bottom_surface = go.Surface(
+        z=Z_plot_neg, 
+        x=X_mesh, 
+        y=Y_mesh, 
+        colorscale=custom_colorscale, 
+        cmin=-tmax, 
+        cmax=0, 
+        colorbar=dict(
+            title='Thickness (in)',
+            orientation='h',
+            x=0.5,
+            y=1.05,
+            xanchor='center',
+            yanchor='bottom',
+            thickness=12,
+            len=0.6
+        )
+    )
 
     fig = go.Figure(data=[roof_surface, bottom_surface])
 
@@ -374,8 +389,7 @@ if st.session_state.run_finished:
             name=f"Support S{i+1}",
             showlegend=False
         ))
-    # Labels permanently removed from this 3D plot
-    
+
     fig.update_layout(
         uirevision=st.session_state.view_rev, 
         scene=dict(
@@ -385,7 +399,8 @@ if st.session_state.run_finished:
             aspectratio=dict(x=dimx/max(dimx, dimy), y=dimy/max(dimx, dimy), z=z_scale_pct/100.0),
             camera=dict(eye=st.session_state.cam_eye, up=st.session_state.cam_up)
         ),
-        margin=dict(l=0, r=0, b=0, t=0), height=600
+        # NEW: Added a little top margin (`t=50`) so the top-placed colorbar has room to breathe
+        margin=dict(l=0, r=0, b=0, t=50), height=600
     )
     st.plotly_chart(fig, use_container_width=True)
     
