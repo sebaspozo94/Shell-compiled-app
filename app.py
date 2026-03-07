@@ -94,11 +94,34 @@ st.markdown('<div class="section-header">🔍 Interactive Support Setup</div>', 
 # Full width map for precision
 add_mode = st.toggle("🖱️ Click on Map to Add Pinned Support", value=False)
 
-# ... [Insert your existing fig2d Plotly logic here] ...
+fig2d = go.Figure()
+fig2d.add_shape(type="rect", x0=0, y0=0, x1=dimx, y1=dimy, line=dict(color="#0f172a", width=2, dash="dash"), fillcolor="rgba(0,0,0,0)")
+
+for i, row in st.session_state.bc_df.iterrows():
+    hx, hy = row['Width'] / 2.0, row['Height'] / 2.0
+    color = '#2563eb' if row['Type'] == "Pinned" else '#0f172a' 
+    fig2d.add_shape(type="rect", x0=row['X (in)'] - hx, y0=row['Y (in)'] - hy, x1=row['X (in)'] + hx, y1=row['Y (in)'] + hy, line=dict(color=color, width=2), fillcolor=color, opacity=0.7)
+
+if add_mode:
+    grid_x, grid_y = np.meshgrid(np.arange(0, dimx + 12, 12), np.arange(0, dimy + 12, 12))
+    fig2d.add_trace(go.Scatter(x=grid_x.flatten(), y=grid_y.flatten(), mode='markers', marker=dict(size=6, color='rgba(100, 100, 100, 0.2)'), hoverinfo='none'))
+
+fig2d.update_layout(
+    xaxis=dict(title="X (in)", range=[-10, dimx+10], constrain="domain", gridcolor='#f1f5f9'),
+    yaxis=dict(title="Y (in)", range=[-10, dimy+10], scaleanchor="x", scaleratio=1, constrain="domain", gridcolor='#f1f5f9'),
+    margin=dict(l=0, r=0, t=20, b=0), height=400, showlegend=False, clickmode='event+select', plot_bgcolor='white'
+)
 
 event = st.plotly_chart(fig2d, on_select="rerun", selection_mode="points", key="bc_map", use_container_width=True)
 
-# ... [Insert your click processing logic here] ...
+if add_mode and event and len(event.selection["points"]) > 0:
+    clicked_pt = event.selection["points"][0]
+    new_x, new_y = clicked_pt["x"], clicked_pt["y"]
+    duplicate = st.session_state.bc_df[(st.session_state.bc_df['X (in)'] == new_x) & (st.session_state.bc_df['Y (in)'] == new_y)]
+    if duplicate.empty:
+        new_row = pd.DataFrame([[new_x, new_y, 4.0, 4.0, "Pinned"]], columns=["X (in)", "Y (in)", "Width", "Height", "Type"])
+        st.session_state.bc_df = pd.concat([st.session_state.bc_df, new_row], ignore_index=True)
+        st.rerun() 
 
 # --- NEW: TABLE AS A DROP MENU ---
 with st.expander("📋 View/Edit Support Coordinates", expanded=False):
@@ -267,6 +290,7 @@ if st.session_state.run_finished:
         label="📥 Download as .STL File", data=stl_data,
         file_name=f"Optimized_Slab_Iter{idx}.stl", mime="model/stl", type="primary"
     )
+
 
 
 
