@@ -7,6 +7,8 @@ import stl
 from stl import mesh 
 from scipy.spatial import Delaunay
 import pandas as pd
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
 
 st.set_page_config(page_title="Shell Topology Opt", layout="wide")
 
@@ -190,46 +192,46 @@ with col_run:
     # Place text placeholder SECOND so it is below the image
     status_text = st.empty()
 
-    # --- PERFECT SYNC DRAWING FUNCTION (Cleans visual clutter to fix syncing/blinking) ---
-    def plot_2d_thickness(Z_matrix):
-        fig_live = go.Figure()
-
-        fig_live.add_trace(go.Heatmap(
-            z=np.flipud(Z_matrix),
-            x=np.linspace(0, dimx, Z_matrix.shape[1]),
-            y=np.linspace(0, dimy, Z_matrix.shape[0]),
-            colorscale=[[0.0, '#cbd5e1'], [0.5, '#2563eb'], [1.0, '#08306b']],
-            zmin=0, zmax=tmax,
-            showscale=False,
-            hoverinfo='skip'
-        ))
+    # --- PERFECT SYNC MATPLOTLIB FUNCTION ---
+    def plot_2d_thickness_mpl(Z_matrix):
+        # 1. Calculate the exact aspect ratio including the padding
+        x_range = dimx + 20
+        y_range = dimy + 20
+        aspect = y_range / x_range
         
-        # Dashed border just like the left column
-        fig_live.add_shape(type="rect", x0=0, y0=0, x1=dimx, y1=dimy, 
-                           line=dict(color="#0f172a", width=2, dash="dash"), fillcolor="rgba(0,0,0,0)")
+        # 2. Create figure with that exact aspect ratio
+        fig, ax = plt.subplots(figsize=(6, 6 * aspect), dpi=100)
         
+        # 3. Strip ALL margins and whitespace so it fills the container perfectly
+        fig.subplots_adjust(left=0, right=1, bottom=0, top=1)
+        ax.axis('off')
+        
+        # 4. Plot the heatmap data
+        ax.imshow(np.flipud(Z_matrix), cmap='Blues_r', extent=[0, dimx, 0, dimy], 
+                  vmin=0, vmax=tmax, interpolation='nearest')
+        
+        # 5. Add the dashed boundary line
+        border = patches.Rectangle((0, 0), dimx, dimy, linewidth=2, edgecolor='#0f172a', 
+                                   facecolor='none', linestyle='--')
+        ax.add_patch(border)
+        
+        # 6. Draw the supports
         for i, row in st.session_state.bc_df.iterrows():
             hx, hy = row['Width'] / 2.0, row['Height'] / 2.0
-            fig_live.add_shape(type="rect", x0=row['X (in)']-hx, y0=row['Y (in)']-hy, 
-                               x1=row['X (in)']+hx, y1=row['Y (in)']+hy, 
-                               line=dict(color="black", width=1), fillcolor="black", opacity=0.3)
-            fig_live.add_annotation(x=row['X (in)'], y=row['Y (in)'], text=f"S{i+1}", showarrow=False, 
-                                    font=dict(color="black", size=11, family="Arial Black"))
+            x_min = row['X (in)'] - hx
+            y_min = row['Y (in)'] - hy
+            
+            support = patches.Rectangle((x_min, y_min), row['Width'], row['Height'], 
+                                        linewidth=1, edgecolor='black', facecolor='black', alpha=0.3)
+            ax.add_patch(support)
+            ax.text(row['X (in)'], row['Y (in)'], f"S{i+1}", color='black', 
+                    ha='center', va='center', fontweight='bold', fontsize=10)
+            
+        # 7. Force the axes limits to match Plotly exactly
+        ax.set_xlim(-10, dimx + 10)
+        ax.set_ylim(-10, dimy + 10)
         
-        # Define layout. Clean grid/axis to stop "blinking" redraws and cluttered display.
-        fig_live.update_layout(
-            autosize=True,
-            xaxis=dict(
-                range=[-10, dimx+10], constrain='domain',
-                showgrid=False, zeroline=False, showticklabels=False # <-- Clean visuals
-            ), 
-            yaxis=dict(
-                range=[-10, dimy+10], scaleanchor="x", scaleratio=1, constrain='domain',
-                showgrid=False, zeroline=False, showticklabels=False # <-- Clean visuals
-            ), 
-            margin=dict(l=0, r=0, t=0, b=0), showlegend=False
-        )
-        return fig_live
+        return fig
 
     # Button Execution
     if run_pressed:
@@ -240,9 +242,12 @@ with col_run:
             target_volume = (total_area * tmin) + (vol_frac * total_area * (tmax - tmin))
             
             def update_live_view(current_it, current_ch, current_Z):
-                fig_frame = plot_2d_thickness(current_Z)
-                # Removed the 'key' argument here! The st.empty() placeholder handles the replacement smoothly.
-                live_plot_spot.plotly_chart(fig_frame, use_container_width=True) 
+                fig_frame = plot_2d_thickness_mpl(current_Z)
+                # Use st.pyplot instead of plotly_chart
+                live_plot_spot.pyplot(fig_frame, use_container_width=True) 
+                # Be sure to close the figure to prevent memory leaks in the loop!
+                plt.close(fig_frame) 
+                
                 status_text.info(f"⚙️ Optimizing... Iteration: {current_it}")
 
             with st.spinner("Optimizing..."):
@@ -257,11 +262,12 @@ with col_run:
 
     # Render Final Iteration permanently
     if st.session_state.run_finished and st.session_state.history is not None:
-        final_frame = plot_2d_thickness(st.session_state.history[-1])
-        # Image rendered permanently on top (Removed the 'key' argument here too)
-        live_plot_spot.plotly_chart(final_frame, use_container_width=True)
+        final_frame = plot_2d_thickness_mpl(st.session_state.history[-1])
+        # Image rendered permanently on top
+        live_plot_spot.pyplot(final_frame, use_container_width=True)
         # Text rendered permanently BELOW the image
         status_text.success(f"✅ Optimization Complete! Iterations run: {len(st.session_state.history)}")
+
 
 # ==========================================
 # PART 4: INTERACTIVE 3D RESULTS
@@ -374,4 +380,3 @@ if st.session_state.run_finished:
 
     stl_data = generate_stl(X_mesh, Y_mesh, Z_plot_neg)
     st.download_button(label="📥 Download as .STL File", data=stl_data, file_name=f"Optimized_Slab_Iter{idx}.stl", mime="model/stl", type="primary")
-
