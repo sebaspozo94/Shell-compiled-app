@@ -184,14 +184,16 @@ with col_run:
     BCMatrix = solver_df.to_numpy()
 
     run_pressed = st.button("🚀 Run Optimization", type="primary", use_container_width=True)
-    status_text = st.empty()
+    
+    # Place visual placeholder FIRST so it is on top
     live_plot_spot = st.empty()
+    # Place text placeholder SECOND so it is below the image
+    status_text = st.empty()
 
-    # --- PERFECT SYNC DRAWING FUNCTION (Now strictly using Plotly) ---
+    # --- PERFECT SYNC DRAWING FUNCTION (Cleans visual clutter to fix syncing/blinking) ---
     def plot_2d_thickness(Z_matrix):
         fig_live = go.Figure()
 
-        # Plotly Heatmap: We flip the array upside down (np.flipud) so the spatial Y-axis matches the domain
         fig_live.add_trace(go.Heatmap(
             z=np.flipud(Z_matrix),
             x=np.linspace(0, dimx, Z_matrix.shape[1]),
@@ -202,11 +204,10 @@ with col_run:
             hoverinfo='skip'
         ))
         
-        # Dashed border to perfectly match the left column
+        # Dashed border just like the left column
         fig_live.add_shape(type="rect", x0=0, y0=0, x1=dimx, y1=dimy, 
                            line=dict(color="#0f172a", width=2, dash="dash"), fillcolor="rgba(0,0,0,0)")
         
-        # Draw the supports on top of the heatmap
         for i, row in st.session_state.bc_df.iterrows():
             hx, hy = row['Width'] / 2.0, row['Height'] / 2.0
             fig_live.add_shape(type="rect", x0=row['X (in)']-hx, y0=row['Y (in)']-hy, 
@@ -215,11 +216,17 @@ with col_run:
             fig_live.add_annotation(x=row['X (in)'], y=row['Y (in)'], text=f"S{i+1}", showarrow=False, 
                                     font=dict(color="black", size=11, family="Arial Black"))
         
-        # Apply the EXACT same layout configuration as the Boundary Conditions Plotly map
+        # Define layout. Clean grid/axis to stop "blinking" redraws and cluttered display.
         fig_live.update_layout(
             autosize=True,
-            xaxis=dict(range=[-10, dimx+10], constrain='domain'), 
-            yaxis=dict(range=[-10, dimy+10], scaleanchor="x", scaleratio=1, constrain='domain'), 
+            xaxis=dict(
+                range=[-10, dimx+10], constrain='domain',
+                showgrid=False, zeroline=False, showticklabels=False # <-- Clean visuals
+            ), 
+            yaxis=dict(
+                range=[-10, dimy+10], scaleanchor="x", scaleratio=1, constrain='domain',
+                showgrid=False, zeroline=False, showticklabels=False # <-- Clean visuals
+            ), 
             margin=dict(l=0, r=0, t=0, b=0), showlegend=False
         )
         return fig_live
@@ -234,7 +241,8 @@ with col_run:
             
             def update_live_view(current_it, current_ch, current_Z):
                 fig_frame = plot_2d_thickness(current_Z)
-                live_plot_spot.plotly_chart(fig_frame, use_container_width=True) # Now uses plotly_chart!
+                # Apply key="live_opt_view" to preserve DOM state between frames to stop flickering
+                live_plot_spot.plotly_chart(fig_frame, use_container_width=True, key="live_opt_view") 
                 status_text.info(f"⚙️ Optimizing... Iteration: {current_it}")
 
             with st.spinner("Optimizing..."):
@@ -247,11 +255,13 @@ with col_run:
                 st.session_state.history, st.session_state.X, st.session_state.Y, st.session_state.run_finished = history, X, Y, True
                 st.rerun()
 
-    # Render Final Iteration
+    # Render Final Iteration permanently
     if st.session_state.run_finished and st.session_state.history is not None:
-        status_text.success(f"✅ Optimization Complete! Iterations run: {len(st.session_state.history)}")
         final_frame = plot_2d_thickness(st.session_state.history[-1])
-        live_plot_spot.plotly_chart(final_frame, use_container_width=True)
+        # Image rendered permanently on top
+        live_plot_spot.plotly_chart(final_frame, use_container_width=True, key="live_opt_view")
+        # Text rendered permanently BELOW the image
+        status_text.success(f"✅ Optimization Complete! Iterations run: {len(st.session_state.history)}")
 
 
 # ==========================================
