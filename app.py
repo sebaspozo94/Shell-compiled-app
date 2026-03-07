@@ -25,7 +25,9 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- APP HEADER ---
+# ==========================================
+# PART 1: HEADER & OBJECTIVE
+# ==========================================
 st.markdown('<div class="main-header">Shell Topology Optimization</div>', unsafe_allow_html=True)
 st.markdown('<div class="tag-container"><span class="tag">Optimization</span><span class="tag">Shell</span><span class="tag">FEA Engine</span></div>', unsafe_allow_html=True)
 
@@ -35,7 +37,7 @@ with st.expander("🎯 App Objective", expanded=False):
     under external distributed load and self-weight.
     """)
 
-# --- 1. SETUP SESSION STATE ---
+# --- SETUP SESSION STATE ---
 if 'run_finished' not in st.session_state:
     st.session_state.run_finished = False
     st.session_state.history = None
@@ -48,7 +50,7 @@ if "bc_df" not in st.session_state:
         columns=["X (in)", "Y (in)", "Width", "Height", "Type"]
     )
 
-# --- 2. SIDEBAR (Materials & Loads Only) ---
+# --- SIDEBAR (Materials & Loads) ---
 with st.sidebar:
     st.header("🧪 Material Properties")
     E = st.number_input("Elastic Modulus (psi)", value=1500000, step=100000)
@@ -60,7 +62,7 @@ with st.sidebar:
     w_u = st.number_input("Distributed Load (w_u)", value=0.2778)
 
 # ==========================================
-# SECTION 1: MODEL CONFIGURATION (DROP MENUS)
+# PART 2: MODEL CONFIGURATION (DROP MENUS)
 # ==========================================
 st.markdown('<div class="section-header">⚙️ Model Configuration</div>', unsafe_allow_html=True)
 conf_col1, conf_col2, conf_col3 = st.columns(3)
@@ -85,137 +87,127 @@ with conf_col3:
 
 st.markdown("---")
 
-# 1. Initialize session state keys for toggles
-if 'add_t' not in st.session_state: st.session_state.add_t = False
-if 'del_t' not in st.session_state: st.session_state.del_t = False
 
-# 2. Callbacks to ensure only one is active at a time
-def on_add_toggle():
-    if st.session_state.add_t:
-        st.session_state.del_t = False
+# ==========================================
+# PART 3: BOUNDARY CONDITIONS & RUN OPTIMIZATION (2 COLUMNS)
+# ==========================================
+st.markdown('<div class="section-header">🎛️ Boundary Conditions & Solver</div>', unsafe_allow_html=True)
 
-def on_del_toggle():
-    if st.session_state.del_t:
-        st.session_state.add_t = False
+# Split the layout into two columns
+col_bc, col_run = st.columns(2)
 
-# 3. Exclusive Toggles
-col_t1, col_t2 = st.columns(2)
-add_mode = col_t1.toggle("🖱️ Click to ADD Support", key="add_t", on_change=on_add_toggle)
-del_mode = col_t2.toggle("🗑️ Click to DELETE Support", key="del_t", on_change=on_del_toggle)
+# --- 3A. BOUNDARY CONDITIONS COLUMN ---
+with col_bc:
+    # Initialize session state keys for toggles
+    if 'add_t' not in st.session_state: st.session_state.add_t = False
+    if 'del_t' not in st.session_state: st.session_state.del_t = False
 
-fig2d = go.Figure()
+    def on_add_toggle():
+        if st.session_state.add_t:
+            st.session_state.del_t = False
 
-# 4. Draw Domain
-fig2d.add_shape(type="rect", x0=0, y0=0, x1=dimx, y1=dimy, 
-                line=dict(color="#0f172a", width=2, dash="dash"), fillcolor="rgba(0,0,0,0)")
+    def on_del_toggle():
+        if st.session_state.del_t:
+            st.session_state.add_t = False
 
-# 5. Draw Existing Supports (Black Labels)
-for i, row in st.session_state.bc_df.iterrows():
-    hx, hy = row['Width'] / 2.0, row['Height'] / 2.0
-    color = '#2563eb'
-    fig2d.add_shape(type="rect", x0=row['X (in)']-hx, y0=row['Y (in)']-hy, x1=row['X (in)']+hx, y1=row['Y (in)']+hy, 
-                    line=dict(color=color, width=2), fillcolor=color, opacity=0.6)
-    fig2d.add_annotation(x=row['X (in)'], y=row['Y (in)'], text=f"S{i+1}", showarrow=False, 
-                         font=dict(color="black", size=11, family="Arial Black"))
+    col_t1, col_t2 = st.columns(2)
+    add_mode = col_t1.toggle("🖱️ Click to ADD Support", key="add_t", on_change=on_add_toggle)
+    del_mode = col_t2.toggle("🗑️ Click to DELETE Support", key="del_t", on_change=on_del_toggle)
 
-# 6. The Clickable Grid (Crucial for st.plotly_chart selection)
-grid_spacing = 12
-grid_x, grid_y = np.meshgrid(np.arange(0, dimx + 1, grid_spacing), np.arange(0, dimy + 1, grid_spacing))
-gx, gy = grid_x.flatten(), grid_y.flatten()
+    fig2d = go.Figure()
 
-# We always add the scatter trace but make it invisible if no mode is active.
-# Plotly 'on_select' ONLY works on Scatter points.
-grid_opacity = 0.3 if (add_mode or del_mode) else 0.0
-grid_color = 'blue' if add_mode else 'red'
+    fig2d.add_shape(type="rect", x0=0, y0=0, x1=dimx, y1=dimy, 
+                    line=dict(color="#0f172a", width=2, dash="dash"), fillcolor="rgba(0,0,0,0)")
 
-fig2d.add_trace(go.Scatter(
-    x=gx, y=gy, mode='markers',
-    marker=dict(size=12, color=grid_color, opacity=grid_opacity, symbol='square'),
-    hoverinfo='text', text="Click here", name="Grid"
-))
+    for i, row in st.session_state.bc_df.iterrows():
+        hx, hy = row['Width'] / 2.0, row['Height'] / 2.0
+        color = '#2563eb'
+        fig2d.add_shape(type="rect", x0=row['X (in)']-hx, y0=row['Y (in)']-hy, x1=row['X (in)']+hx, y1=row['Y (in)']+hy, 
+                        line=dict(color=color, width=2), fillcolor=color, opacity=0.6)
+        fig2d.add_annotation(x=row['X (in)'], y=row['Y (in)'], text=f"S{i+1}", showarrow=False, 
+                             font=dict(color="black", size=11, family="Arial Black"))
 
-# Calculate fixed dimensions to prevent the infinite resize loop
-aspect_ratio = dimy / dimx
-plot_width = 800
-plot_height = int(plot_width * aspect_ratio)
+    grid_spacing = 12
+    grid_x, grid_y = np.meshgrid(np.arange(0, dimx + 1, grid_spacing), np.arange(0, dimy + 1, grid_spacing))
+    gx, gy = grid_x.flatten(), grid_y.flatten()
 
-fig2d.update_layout(
-    autosize=False,
-    width=plot_width,
-    height=plot_height,
-    xaxis=dict(range=[-10, dimx+10]),  # <--- Removed fixedrange=True
-    yaxis=dict(range=[-10, dimy+10], scaleanchor="x", scaleratio=1), # <--- Removed fixedrange=True
-    clickmode='event+select', # <--- Removed dragmode=False
-    margin=dict(l=0, r=0, t=0, b=0), showlegend=False
-)
+    grid_opacity = 0.3 if (add_mode or del_mode) else 0.0
+    grid_color = 'blue' if add_mode else 'red'
 
-# 7. Capture the Selection
-event = st.plotly_chart(fig2d, on_select="rerun", key="bc_map", use_container_width=False)
+    fig2d.add_trace(go.Scatter(
+        x=gx, y=gy, mode='markers',
+        marker=dict(size=12, color=grid_color, opacity=grid_opacity, symbol='square'),
+        hoverinfo='text', text="Click here", name="Grid"
+    ))
 
-if event and "selection" in event and len(event["selection"]["points"]) > 0:
-    # Get the clicked point from the scatter trace
-    pt = event["selection"]["points"][0]
-    cx, cy = pt['x'], pt['y']
-    
-    if add_mode:
-        # Prevent adding multiple supports to the same point
-        if not ((st.session_state.bc_df['X (in)'] == cx) & (st.session_state.bc_df['Y (in)'] == cy)).any():
-            new_row = pd.DataFrame([[float(cx), float(cy), 4.0, 4.0, "Pinned"]], 
-                                   columns=["X (in)", "Y (in)", "Width", "Height", "Type"])
-            st.session_state.bc_df = pd.concat([st.session_state.bc_df, new_row], ignore_index=True)
-            st.rerun()
-            
-    elif del_mode:
-        # Check if the clicked grid point is inside any support rectangle
-        to_drop = []
-        for i, row in st.session_state.bc_df.iterrows():
-            hx, hy = row['Width']/2, row['Height']/2
-            if (row['X (in)']-hx <= cx <= row['X (in)']+hx) and (row['Y (in)']-hy <= cy <= row['Y (in)']+hy):
-                to_drop.append(i)
-        
-        if to_drop:
-            st.session_state.bc_df = st.session_state.bc_df.drop(to_drop).reset_index(drop=True)
-            st.rerun()
-            
-with st.expander("📋 View/Edit Support Coordinates", expanded=False):
-    # Nested Drop Menu for Instructions
-    with st.expander("📖 How to read this table?", expanded=False):
-        st.markdown("""
-        | Column | Description |
-        | :--- | :--- |
-        | **X / Y (in)** | The center coordinates of the support on the domain. |
-        | **Width / Height** | The physical size of the support "patch" in inches. |
-        | **Type** | **Pinned:** Restricts movement (XYZ). <br> **Fixed:** Restricts movement and rotation (Moment). |
-        
-        **Pro Tips:**
-        * You can manually type coordinates here to be laser-accurate.
-        * Use the `Delete` key on your keyboard to remove a row.
-        * Click the `+` at the bottom of the table to add a support manually.
-        """)
-    display_df = st.session_state.bc_df.copy()
-    display_df.insert(0, "ID", [f"S{i+1}" for i in range(len(display_df))])
-    
-    edited_bc_df = st.data_editor(
-        display_df, 
-        num_rows="dynamic", use_container_width=True, hide_index=True, 
-        column_config={"ID": st.column_config.TextColumn(disabled=True), "Type": st.column_config.SelectboxColumn("Type", options=["Pinned", "Fixed"])}
+    # Incorporating the domain constraint fix so resizing works nicely in columns
+    fig2d.update_layout(
+        autosize=True,
+        xaxis=dict(range=[-10, dimx+10], constrain='domain'), 
+        yaxis=dict(range=[-10, dimy+10], scaleanchor="x", scaleratio=1, constrain='domain'), 
+        clickmode='event+select', 
+        margin=dict(l=0, r=0, t=0, b=0), showlegend=False
     )
-    # Sync back (excluding the ID column)
-    if not edited_bc_df.drop(columns=["ID"]).equals(st.session_state.bc_df):
-        st.session_state.bc_df = edited_bc_df.drop(columns=["ID"])
-        st.rerun()
-        
-# Solver prep
-solver_df = st.session_state.bc_df.copy()
-solver_df["Type"] = solver_df["Type"].map({"Pinned": 0, "Fixed": 1})
-BCMatrix = solver_df.to_numpy()
 
-# ==========================================
-# SECTION 3: SOLVER & RESULTS
-# ==========================================
-st.markdown("---")
-col_btn_l, col_btn_mid, col_btn_r = st.columns([1, 2, 1])
-with col_btn_mid:
+    event = st.plotly_chart(fig2d, on_select="rerun", key="bc_map", use_container_width=True)
+
+    if event and "selection" in event and len(event["selection"]["points"]) > 0:
+        pt = event["selection"]["points"][0]
+        cx, cy = pt['x'], pt['y']
+        
+        if add_mode:
+            if not ((st.session_state.bc_df['X (in)'] == cx) & (st.session_state.bc_df['Y (in)'] == cy)).any():
+                new_row = pd.DataFrame([[float(cx), float(cy), 4.0, 4.0, "Pinned"]], 
+                                       columns=["X (in)", "Y (in)", "Width", "Height", "Type"])
+                st.session_state.bc_df = pd.concat([st.session_state.bc_df, new_row], ignore_index=True)
+                st.rerun()
+                
+        elif del_mode:
+            to_drop = []
+            for i, row in st.session_state.bc_df.iterrows():
+                hx, hy = row['Width']/2, row['Height']/2
+                if (row['X (in)']-hx <= cx <= row['X (in)']+hx) and (row['Y (in)']-hy <= cy <= row['Y (in)']+hy):
+                    to_drop.append(i)
+            
+            if to_drop:
+                st.session_state.bc_df = st.session_state.bc_df.drop(to_drop).reset_index(drop=True)
+                st.rerun()
+                
+    with st.expander("📋 View/Edit Support Coordinates", expanded=False):
+        with st.expander("📖 How to read this table?", expanded=False):
+            st.markdown("""
+            | Column | Description |
+            | :--- | :--- |
+            | **X / Y (in)** | The center coordinates of the support on the domain. |
+            | **Width / Height** | The physical size of the support "patch" in inches. |
+            | **Type** | **Pinned:** Restricts movement (XYZ). <br> **Fixed:** Restricts movement and rotation (Moment). |
+            
+            **Pro Tips:**
+            * You can manually type coordinates here to be laser-accurate.
+            * Use the `Delete` key on your keyboard to remove a row.
+            * Click the `+` at the bottom of the table to add a support manually.
+            """)
+        display_df = st.session_state.bc_df.copy()
+        display_df.insert(0, "ID", [f"S{i+1}" for i in range(len(display_df))])
+        
+        edited_bc_df = st.data_editor(
+            display_df, 
+            num_rows="dynamic", use_container_width=True, hide_index=True, 
+            column_config={"ID": st.column_config.TextColumn(disabled=True), "Type": st.column_config.SelectboxColumn("Type", options=["Pinned", "Fixed"])}
+        )
+        if not edited_bc_df.drop(columns=["ID"]).equals(st.session_state.bc_df):
+            st.session_state.bc_df = edited_bc_df.drop(columns=["ID"])
+            st.rerun()
+
+# --- 3B. SOLVER / RUN COLUMN ---
+with col_run:
+    st.markdown("<br>", unsafe_allow_html=True) # Adds a little vertical padding
+    
+    # Solver prep
+    solver_df = st.session_state.bc_df.copy()
+    solver_df["Type"] = solver_df["Type"].map({"Pinned": 0, "Fixed": 1})
+    BCMatrix = solver_df.to_numpy()
+
     if st.button("🚀 Run Optimization", type="primary", use_container_width=True):
         if len(BCMatrix) == 0:
             st.error("Please add at least one support!")
@@ -226,24 +218,20 @@ with col_btn_mid:
             live_plot_spot = st.empty()
             
             def update_live_view(current_it, current_ch, current_Z):
-                fig_live, ax_live = plt.subplots(figsize=(10, 4))
+                fig_live, ax_live = plt.subplots(figsize=(6, 4)) # Reduced figsize slightly to fit the column better
                 fig_live.patch.set_alpha(0.0)
                 ax_live.axis('off') 
                 
-                # 1. Draw the thickness map
                 im = ax_live.imshow(current_Z, cmap=custom_cmap, vmin=0, vmax=tmax, 
                                     extent=[0, dimx, 0, dimy], origin='upper')
                 
-                # 2. Draw black support indicators with black text
                 for i, row in st.session_state.bc_df.iterrows():
                     hx, hy = row['Width'] / 2.0, row['Height'] / 2.0
-                    # Draw a subtle black box to represent the support zone
                     rect = plt.Rectangle((row['X (in)'] - hx, row['Y (in)'] - hy), 
                                          row['Width'], row['Height'], 
                                          color='black', alpha=0.3)
                     ax_live.add_patch(rect)
                     
-                    # Add the S1, S2 identifier in Black text
                     ax_live.text(row['X (in)'], row['Y (in)'], f"S{i+1}", 
                                  color='black', ha='center', va='center', 
                                  fontsize=9, fontweight='bold')
@@ -262,7 +250,11 @@ with col_btn_mid:
                 st.session_state.history, st.session_state.X, st.session_state.Y, st.session_state.run_finished = history, X, Y, True
                 st.rerun()
 
+# ==========================================
+# PART 4: INTERACTIVE 3D RESULTS
+# ==========================================
 if st.session_state.run_finished:
+    st.markdown("---")
     st.markdown('<div class="section-header">🕒 Interactive 3D Results</div>', unsafe_allow_html=True)
     steps = len(st.session_state.history)
     
@@ -289,19 +281,16 @@ if st.session_state.run_finished:
         st.session_state.view_rev += 1
 
     col_slider, col_scale = st.columns([2, 1])
-    # Definition of idx happens BEFORE we extract data from the history
     with col_slider: 
         idx = st.slider("Iteration History", 0, steps - 1, steps - 1)
     with col_scale: 
         z_scale_pct = st.slider("Visual Z-Scale (%)", 0, 100, key="z_scale_val")
     
-    # Extract the raw matrix for the chosen iteration
     Z_raw = st.session_state.history[idx]
     
-    # FIX MIRRORING: Flip up-down and transpose to align solver output to Plotly XYZ
+    # FIX MIRRORING: Flip up-down and transpose
     Z_final = np.flipud(Z_raw).T 
     
-    # Build coordinates based on the final aligned matrix shape
     x_coords = np.linspace(0, dimx, Z_final.shape[1])
     y_coords = np.linspace(0, dimy, Z_final.shape[0])
     X_mesh, Y_mesh = np.meshgrid(x_coords, y_coords)
@@ -309,20 +298,17 @@ if st.session_state.run_finished:
     Z_plot_neg = -Z_final 
     custom_colorscale = [[0.0, '#08306b'], [0.4, '#2563eb'], [1.0, '#cbd5e1']]
 
-    # 3D Surfaces
     roof_surface = go.Surface(z=np.zeros_like(Z_plot_neg), x=X_mesh, y=Y_mesh, colorscale=[[0, '#cbd5e1'], [1, '#cbd5e1']], showscale=False, hoverinfo='skip')
     bottom_surface = go.Surface(z=Z_plot_neg, x=X_mesh, y=Y_mesh, colorscale=custom_colorscale, cmin=-tmax, cmax=0, colorbar=dict(title='Thickness (in)'))
 
     fig = go.Figure(data=[roof_surface, bottom_surface])
 
-    # 4. Add Extruded Supports to 3D Plot (Scaled to 1.2x Max Thickness)
     support_depth = -tmax * 1.2
     for i, row in st.session_state.bc_df.iterrows():
         hx, hy = row['Width'] / 2.0, row['Height'] / 2.0
         x_min, x_max = row['X (in)'] - hx, row['X (in)'] + hx
         y_min, y_max = row['Y (in)'] - hy, row['Y (in)'] + hy
         
-        # Create an extruded block
         fig.add_trace(go.Mesh3d(
             x=[x_min, x_max, x_max, x_min, x_min, x_max, x_max, x_min],
             y=[y_min, y_min, y_max, y_max, y_min, y_min, y_max, y_max],
@@ -337,7 +323,6 @@ if st.session_state.run_finished:
             showlegend=False
         ))
 
-    # 5. Add 3D Text Labels in Black (Floating 0.1 * tmax above design)
     fig.add_trace(go.Scatter3d(
         x=st.session_state.bc_df['X (in)'],
         y=st.session_state.bc_df['Y (in)'],
@@ -349,7 +334,6 @@ if st.session_state.run_finished:
         hoverinfo='skip'
     ))
     
-    # 6. Apply Layout with updated Z-axis bounds
     fig.update_layout(
         uirevision=st.session_state.view_rev, 
         scene=dict(
@@ -376,7 +360,5 @@ if st.session_state.run_finished:
         slab_mesh.save('slab.stl', fh=buf)
         return buf.getvalue()
 
-    # Pass the fixed matrices to the STL generator
     stl_data = generate_stl(X_mesh, Y_mesh, Z_plot_neg)
     st.download_button(label="📥 Download as .STL File", data=stl_data, file_name=f"Optimized_Slab_Iter{idx}.stl", mime="model/stl", type="primary")
-
