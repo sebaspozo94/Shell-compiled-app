@@ -117,7 +117,7 @@ for i, row in st.session_state.bc_df.iterrows():
     
     # Add the Identifier Label (S1, S2, etc.)
     fig2d.add_annotation(x=row['X (in)'], y=row['Y (in)'], text=f"S{i+1}", 
-                         showarrow=False, font=dict(color="white", size=10, family="Arial Black"))
+                         showarrow=False, font=dict(color="black", size=10, family="Arial Black"))
 
 # 3. Show Grid for Interaction (Both Add and Delete now use the grid)
 if add_mode or del_mode:
@@ -224,10 +224,6 @@ with col_btn_mid:
                 fig_live.patch.set_alpha(0.0)
                 ax_live.axis('off') 
                 im = ax_live.imshow(current_Z, cmap=custom_cmap, vmin=0, vmax=tmax, extent=[0, dimx, 0, dimy], origin='upper')
-                # Draw BCs on Live Plot
-                for i, row in st.session_state.bc_df.iterrows():
-                    rect = patches.Rectangle((row['X (in)']-row['Width']/2, row['Y (in)']-row['Height']/2), row['Width'], row['Height'], linewidth=1, edgecolor='r', facecolor='none')
-                    ax_live.add_patch(rect)
                 live_plot_spot.pyplot(fig_live)
                 plt.close(fig_live)
                 status_text.info(f"⚙️ Optimizing... Iteration: {current_it}")
@@ -324,6 +320,7 @@ if st.session_state.run_finished:
 
     stl_data = generate_stl(X_mesh, Y_mesh, Z_plot_neg)
     st.download_button(label="📥 Download as .STL File", data=stl_data, file_name=f"Optimized_Slab_Iter{idx}.stl", mime="model/stl", type="primary")
+
 
 
 
