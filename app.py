@@ -9,6 +9,7 @@ from scipy.spatial import Delaunay
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+from matplotlib.colors import LinearSegmentedColormap
 
 st.set_page_config(page_title="Shell Topology Opt", layout="wide")
 
@@ -187,35 +188,29 @@ with col_run:
 
     run_pressed = st.button("🚀 Run Optimization", type="primary", use_container_width=True)
     
-    # Place visual placeholder FIRST so it is on top
     live_plot_spot = st.empty()
-    # Place text placeholder SECOND so it is below the image
     status_text = st.empty()
 
     # --- PERFECT SYNC MATPLOTLIB FUNCTION ---
     def plot_2d_thickness_mpl(Z_matrix):
-        # 1. Calculate the exact aspect ratio including the padding
         x_range = dimx + 20
         y_range = dimy + 20
         aspect = y_range / x_range
         
-        # 2. Create figure with that exact aspect ratio
         fig, ax = plt.subplots(figsize=(6, 6 * aspect), dpi=100)
-        
-        # 3. Strip ALL margins and whitespace so it fills the container perfectly
         fig.subplots_adjust(left=0, right=1, bottom=0, top=1)
         ax.axis('off')
         
-        # 4. Plot the heatmap data
-        ax.imshow(np.flipud(Z_matrix), cmap='Blues_r', extent=[0, dimx, 0, dimy], 
+        # 1. FIXED COLORSCALE: Maps exactly to the Plotly colors
+        custom_cmap = LinearSegmentedColormap.from_list("custom_blue", ['#cbd5e1', '#2563eb', '#08306b'])
+        
+        ax.imshow(np.flipud(Z_matrix), cmap=custom_cmap, extent=[0, dimx, 0, dimy], 
                   vmin=0, vmax=tmax, interpolation='nearest')
         
-        # 5. Add the dashed boundary line
         border = patches.Rectangle((0, 0), dimx, dimy, linewidth=2, edgecolor='#0f172a', 
                                    facecolor='none', linestyle='--')
         ax.add_patch(border)
         
-        # 6. Draw the supports
         for i, row in st.session_state.bc_df.iterrows():
             hx, hy = row['Width'] / 2.0, row['Height'] / 2.0
             x_min = row['X (in)'] - hx
@@ -227,13 +222,17 @@ with col_run:
             ax.text(row['X (in)'], row['Y (in)'], f"S{i+1}", color='black', 
                     ha='center', va='center', fontweight='bold', fontsize=10)
             
-        # 7. Force the axes limits to match Plotly exactly
         ax.set_xlim(-10, dimx + 10)
         ax.set_ylim(-10, dimy + 10)
         
-        return fig
+        # 2. FIXED RESIZING: Save to a tight image buffer instead of using st.pyplot directly
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png', bbox_inches='tight', pad_inches=0, transparent=True)
+        plt.close(fig)
+        buf.seek(0)
+        
+        return buf
 
-    # Button Execution
     if run_pressed:
         if len(BCMatrix) == 0:
             st.error("Please add at least one support!")
@@ -242,12 +241,9 @@ with col_run:
             target_volume = (total_area * tmin) + (vol_frac * total_area * (tmax - tmin))
             
             def update_live_view(current_it, current_ch, current_Z):
-                fig_frame = plot_2d_thickness_mpl(current_Z)
-                # Use st.pyplot instead of plotly_chart
-                live_plot_spot.pyplot(fig_frame, use_container_width=True) 
-                # Be sure to close the figure to prevent memory leaks in the loop!
-                plt.close(fig_frame) 
-                
+                img_buffer = plot_2d_thickness_mpl(current_Z)
+                # Render using st.image for perfect, flicker-free sizing
+                live_plot_spot.image(img_buffer, use_container_width=True) 
                 status_text.info(f"⚙️ Optimizing... Iteration: {current_it}")
 
             with st.spinner("Optimizing..."):
@@ -260,12 +256,9 @@ with col_run:
                 st.session_state.history, st.session_state.X, st.session_state.Y, st.session_state.run_finished = history, X, Y, True
                 st.rerun()
 
-    # Render Final Iteration permanently
     if st.session_state.run_finished and st.session_state.history is not None:
-        final_frame = plot_2d_thickness_mpl(st.session_state.history[-1])
-        # Image rendered permanently on top
-        live_plot_spot.pyplot(final_frame, use_container_width=True)
-        # Text rendered permanently BELOW the image
+        final_img_buffer = plot_2d_thickness_mpl(st.session_state.history[-1])
+        live_plot_spot.image(final_img_buffer, use_container_width=True)
         status_text.success(f"✅ Optimization Complete! Iterations run: {len(st.session_state.history)}")
 
 
