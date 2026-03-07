@@ -122,6 +122,21 @@ if add_mode and event and event.get("selection") and len(event["selection"]["poi
         st.rerun() 
 
 with st.expander("📋 View/Edit Support Coordinates", expanded=False):
+    # Nested Drop Menu for Instructions
+    with st.expander("📖 How to read this table?", expanded=False):
+        st.markdown("""
+        | Column | Description |
+        | :--- | :--- |
+        | **X / Y (in)** | The center coordinates of the support on the domain. |
+        | **Width / Height** | The physical size of the support "patch" in inches. |
+        | **Type** | **Pinned:** Restricts movement (XYZ). <br> **Fixed:** Restricts movement and rotation (Moment). |
+        
+        **Pro Tips:**
+        * You can manually type coordinates here to be laser-accurate.
+        * Use the `Delete` key on your keyboard to remove a row.
+        * Click the `+` at the bottom of the table to add a support manually.
+        """)
+        
     edited_bc_df = st.data_editor(
         st.session_state.bc_df, 
         num_rows="dynamic", 
@@ -243,3 +258,4 @@ if st.session_state.run_finished:
 
     stl_data = generate_stl(X_mesh, Y_mesh, Z_plot_neg)
     st.download_button(label="📥 Download as .STL File", data=stl_data, file_name=f"Optimized_Slab_Iter{idx}.stl", mime="model/stl", type="primary")
+
