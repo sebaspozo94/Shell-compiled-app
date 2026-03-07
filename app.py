@@ -300,34 +300,40 @@ if st.session_state.run_finished:
 
     fig = go.Figure(data=[roof_surface, bottom_surface])
 
-    # 4. Add Extruded Supports to 3D Plot
+# 4. Add Extruded Supports to 3D Plot (Fixed Vertex Logic)
     for i, row in st.session_state.bc_df.iterrows():
         hx, hy = row['Width'] / 2.0, row['Height'] / 2.0
-        
-        # Create an extruded block from 0 to -tmax
+        x_min, x_max = row['X (in)'] - hx, row['X (in)'] + hx
+        y_min, y_max = row['Y (in)'] - hy, row['Y (in)'] + hy
+        z_min, z_max = -tmax, 0 # Extrude from base to top
+
         fig.add_trace(go.Mesh3d(
-            x=[row['X (in)']-hx, row['X (in)']+hx, row['X (in)']+hx, row['X (in)']-hx, 
-               row['X (in)']-hx, row['X (in)']+hx, row['X (in)']+hx, row['X (in)']-hx],
-            y=[row['Y (in)']-hy, row['Y (in)']-hy, row['Y (in)']+hy, row['Y (in)']+hy, 
-               row['Y (in)']-hy, row['Y (in)']-hy, row['Y (in)']+hy, row['Y (in)']+hy],
-            z=[0, 0, 0, 0, -tmax, -tmax, -tmax, -tmax],
+            # 8 vertices of a cube
+            x=[x_min, x_max, x_max, x_min, x_min, x_max, x_max, x_min],
+            y=[y_min, y_min, y_max, y_max, y_min, y_min, y_max, y_max],
+            z=[z_min, z_min, z_min, z_min, z_max, z_max, z_max, z_max],
+            
+            # i, j, k define the triangles forming the faces
+            i=[7, 0, 0, 0, 4, 4, 6, 6, 4, 0, 3, 2],
+            j=[3, 4, 1, 2, 5, 6, 5, 2, 0, 1, 6, 3],
+            k=[0, 7, 2, 3, 6, 7, 1, 1, 5, 5, 7, 6],
+            
             color='black', 
-            opacity=0.3, # Transparency applied here
+            opacity=0.2, 
             flatshading=True,
             name=f"Support S{i+1}",
             showlegend=False
         ))
 
-    # 5. Add 3D Text Labels in Black
+    # 5. Add 3D Text Labels (Floating just above the extrusion)
     fig.add_trace(go.Scatter3d(
         x=st.session_state.bc_df['X (in)'],
         y=st.session_state.bc_df['Y (in)'],
-        z=[1.0] * len(st.session_state.bc_df), # Positioned slightly above Z=0
+        z=[0.5] * len(st.session_state.bc_df), 
         mode='text',
         text=[f"S{i+1}" for i in range(len(st.session_state.bc_df))],
         textfont=dict(color="black", size=14, family="Arial Black"),
-        showlegend=False,
-        hoverinfo='skip'
+        showlegend=False
     ))
     
     fig.update_layout(
@@ -358,6 +364,7 @@ if st.session_state.run_finished:
 
     stl_data = generate_stl(X_mesh, Y_mesh, Z_plot_neg)
     st.download_button(label="📥 Download as .STL File", data=stl_data, file_name=f"Optimized_Slab_Iter{idx}.stl", mime="model/stl", type="primary")
+
 
 
 
