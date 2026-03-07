@@ -1,5 +1,4 @@
 import streamlit as st
-import matplotlib.pyplot as plt
 import numpy as np
 import logic  # Ensure logic.so is in the same directory
 import plotly.graph_objects as go
@@ -7,11 +6,7 @@ import io
 import stl              
 from stl import mesh 
 from scipy.spatial import Delaunay
-from matplotlib.colors import LinearSegmentedColormap
 import pandas as pd
-
-# Define the custom Matplotlib colormap
-custom_cmap = LinearSegmentedColormap.from_list("custom_blues", ['#cbd5e1', '#2563eb', '#08306b'])
 
 st.set_page_config(page_title="Shell Topology Opt", layout="wide")
 
@@ -62,7 +57,7 @@ with st.sidebar:
     w_u = st.number_input("Distributed Load (w_u)", value=0.2778)
 
 # ==========================================
-# PART 2: MODEL CONFIGURATION (DROP MENUS)
+# PART 2: MODEL CONFIGURATION
 # ==========================================
 st.markdown('<div class="section-header">⚙️ Model Configuration</div>', unsafe_allow_html=True)
 conf_col1, conf_col2, conf_col3 = st.columns(3)
@@ -87,9 +82,8 @@ with conf_col3:
 
 st.markdown("---")
 
-
 # ==========================================
-# PART 3: BOUNDARY CONDITIONS & RUN OPTIMIZATION (2 COLUMNS)
+# PART 3: BOUNDARY CONDITIONS & RUN OPTIMIZATION
 # ==========================================
 st.markdown('<div class="section-header">🎛️ Boundary Conditions & Solver</div>', unsafe_allow_html=True)
 
@@ -169,14 +163,6 @@ with col_bc:
                 st.rerun()
                 
     with st.expander("📋 View/Edit Support Coordinates", expanded=False):
-        with st.expander("📖 How to read this table?", expanded=False):
-            st.markdown("""
-            | Column | Description |
-            | :--- | :--- |
-            | **X / Y (in)** | The center coordinates of the support on the domain. |
-            | **Width / Height** | The physical size of the support "patch" in inches. |
-            | **Type** | **Pinned:** Restricts movement (XYZ). <br> **Fixed:** Restricts movement and rotation (Moment). |
-            """)
         display_df = st.session_state.bc_df.copy()
         display_df.insert(0, "ID", [f"S{i+1}" for i in range(len(display_df))])
         
@@ -193,7 +179,6 @@ with col_bc:
 with col_run:
     st.markdown("<br>", unsafe_allow_html=True) 
     
-    # Solver prep
     solver_df = st.session_state.bc_df.copy()
     solver_df["Type"] = solver_df["Type"].map({"Pinned": 0, "Fixed": 1})
     BCMatrix = solver_df.to_numpy()
@@ -202,40 +187,41 @@ with col_run:
     status_text = st.empty()
     live_plot_spot = st.empty()
 
-    # --- PERFECT SYNC DRAWING FUNCTION ---
+    # --- PERFECT SYNC DRAWING FUNCTION (Now strictly using Plotly) ---
     def plot_2d_thickness(Z_matrix):
-        # 1. Calculate the exact Aspect Ratio (including the -10 / +10 padding from Plotly)
-        plot_x_range = dimx + 20 
-        plot_y_range = dimy + 20
-        aspect_ratio = plot_y_range / plot_x_range
+        fig_live = go.Figure()
+
+        # Plotly Heatmap: We flip the array upside down (np.flipud) so the spatial Y-axis matches the domain
+        fig_live.add_trace(go.Heatmap(
+            z=np.flipud(Z_matrix),
+            x=np.linspace(0, dimx, Z_matrix.shape[1]),
+            y=np.linspace(0, dimy, Z_matrix.shape[0]),
+            colorscale=[[0.0, '#cbd5e1'], [0.5, '#2563eb'], [1.0, '#08306b']],
+            zmin=0, zmax=tmax,
+            showscale=False,
+            hoverinfo='skip'
+        ))
         
-        # 2. Build the exact size to mirror the left column
-        fig_w = 6.0
-        fig_h = fig_w * aspect_ratio
-        fig_live = plt.figure(figsize=(fig_w, fig_h))
+        # Dashed border to perfectly match the left column
+        fig_live.add_shape(type="rect", x0=0, y0=0, x1=dimx, y1=dimy, 
+                           line=dict(color="#0f172a", width=2, dash="dash"), fillcolor="rgba(0,0,0,0)")
         
-        # 3. [0, 0, 1, 1] means ZERO margins around the graph!
-        ax_live = fig_live.add_axes([0, 0, 1, 1])
-        ax_live.axis('off') 
-        
-        # 4. Enforce identical bounding coordinates to Plotly
-        ax_live.set_xlim(-10, dimx + 10)
-        ax_live.set_ylim(-10, dimy + 10)
-        
-        # Draw the dashed border just like the Plotly chart
-        ax_live.plot([0, dimx, dimx, 0, 0], [0, 0, dimy, dimy, 0], 
-                     color="#0f172a", linestyle="--", linewidth=2)
-        
-        im = ax_live.imshow(Z_matrix, cmap=custom_cmap, vmin=0, vmax=tmax, 
-                            extent=[0, dimx, 0, dimy], origin='upper')
-        
+        # Draw the supports on top of the heatmap
         for i, row in st.session_state.bc_df.iterrows():
             hx, hy = row['Width'] / 2.0, row['Height'] / 2.0
-            rect = plt.Rectangle((row['X (in)'] - hx, row['Y (in)'] - hy), 
-                                 row['Width'], row['Height'], color='black', alpha=0.3)
-            ax_live.add_patch(rect)
-            ax_live.text(row['X (in)'], row['Y (in)'], f"S{i+1}", 
-                         color='black', ha='center', va='center', fontsize=9, fontweight='bold')
+            fig_live.add_shape(type="rect", x0=row['X (in)']-hx, y0=row['Y (in)']-hy, 
+                               x1=row['X (in)']+hx, y1=row['Y (in)']+hy, 
+                               line=dict(color="black", width=1), fillcolor="black", opacity=0.3)
+            fig_live.add_annotation(x=row['X (in)'], y=row['Y (in)'], text=f"S{i+1}", showarrow=False, 
+                                    font=dict(color="black", size=11, family="Arial Black"))
+        
+        # Apply the EXACT same layout configuration as the Boundary Conditions Plotly map
+        fig_live.update_layout(
+            autosize=True,
+            xaxis=dict(range=[-10, dimx+10], constrain='domain'), 
+            yaxis=dict(range=[-10, dimy+10], scaleanchor="x", scaleratio=1, constrain='domain'), 
+            margin=dict(l=0, r=0, t=0, b=0), showlegend=False
+        )
         return fig_live
 
     # Button Execution
@@ -248,9 +234,7 @@ with col_run:
             
             def update_live_view(current_it, current_ch, current_Z):
                 fig_frame = plot_2d_thickness(current_Z)
-                # Ensure use_container_width=True is set to force scale it beautifully!
-                live_plot_spot.pyplot(fig_frame, use_container_width=True)
-                plt.close(fig_frame)
+                live_plot_spot.plotly_chart(fig_frame, use_container_width=True) # Now uses plotly_chart!
                 status_text.info(f"⚙️ Optimizing... Iteration: {current_it}")
 
             with st.spinner("Optimizing..."):
@@ -267,8 +251,7 @@ with col_run:
     if st.session_state.run_finished and st.session_state.history is not None:
         status_text.success(f"✅ Optimization Complete! Iterations run: {len(st.session_state.history)}")
         final_frame = plot_2d_thickness(st.session_state.history[-1])
-        live_plot_spot.pyplot(final_frame, use_container_width=True)
-        plt.close(final_frame)
+        live_plot_spot.plotly_chart(final_frame, use_container_width=True)
 
 
 # ==========================================
