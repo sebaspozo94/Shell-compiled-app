@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from matplotlib.colors import LinearSegmentedColormap
 
-st.set_page_config(page_title="Shell Topology Opt", layout="wide")
+st.set_page_config(page_title="Shell Topology Opt", layout="centered")
 
 # --- CUSTOM CSS ---
 st.markdown("""
@@ -450,6 +450,7 @@ if st.session_state.run_finished:
 
     stl_data = generate_stl(X_mesh, Y_mesh, Z_plot_neg)
     st.download_button(label="📥 Download as .STL File", data=stl_data, file_name=f"Optimized_Slab_Iter{idx}.stl", mime="model/stl", type="primary")
+
 
 
 
