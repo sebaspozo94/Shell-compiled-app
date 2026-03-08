@@ -225,7 +225,7 @@ with col_run:
             y_min = row['Y (in)'] - hy
             
             support = patches.Rectangle((x_min, y_min), row['Width'], row['Height'], 
-                                        linewidth=1, edgecolor='darkred', facecolor='red', alpha=0.5)
+                                        linewidth=1, edgecolor='darkred', facecolor='red', alpha=0.9)
             ax.add_patch(support)
             
         ax.set_xlim(-10, dimx + 10)
@@ -419,3 +419,4 @@ if st.session_state.run_finished:
 
     stl_data = generate_stl(X_mesh, Y_mesh, Z_plot_neg)
     st.download_button(label="📥 Download as .STL File", data=stl_data, file_name=f"Optimized_Slab_Iter{idx}.stl", mime="model/stl", type="primary")
+
