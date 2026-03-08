@@ -11,7 +11,18 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from matplotlib.colors import LinearSegmentedColormap
 
-st.set_page_config(page_title="Shell Topology Opt", layout="wide")
+
+st.set_page_config(
+    page_title="Shell Topology Opt",
+    page_icon="🏗️",
+    # Note: Streamlit uses this for the browser tab and social previews
+    menu_items={
+        'About': "Check out the 'Opt_Shell_app.png' in the repo for the layout preview!"
+    }
+)
+
+# To display it inside the app itself as a header:
+st.image("Opt_Shell_app.png", use_container_width=False)
 
 # --- CUSTOM CSS ---
 st.markdown("""
@@ -450,6 +461,7 @@ if st.session_state.run_finished:
 
     stl_data = generate_stl(X_mesh, Y_mesh, Z_plot_neg)
     st.download_button(label="📥 Download as .STL File", data=stl_data, file_name=f"Optimized_Slab_Iter{idx}.stl", mime="model/stl", type="primary")
+
 
 
 
