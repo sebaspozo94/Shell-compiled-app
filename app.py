@@ -110,7 +110,6 @@ with col_bc:
         if st.session_state.del_t: st.session_state.add_t = False
 
     col_t1, col_t2 = st.columns(2)
-    # NEW: Updated toggles to use the more intuitive icons
     add_mode = col_t1.toggle("➕ ADD", key="add_t", on_change=on_add_toggle)
     del_mode = col_t2.toggle("➖ DELETE", key="del_t", on_change=on_del_toggle)
 
@@ -173,7 +172,17 @@ with col_bc:
             if to_drop:
                 st.session_state.bc_df = st.session_state.bc_df.drop(to_drop).reset_index(drop=True)
                 st.rerun()
-                
+    
+    # NEW: Added back the description of the boundary conditions table
+    with st.expander("ℹ️ How Supports Work", expanded=False):
+        st.markdown("""
+        Use the table below to manually edit the exact coordinates and dimensions of your supports.
+        * **X & Y (in):** The center location of the support.
+        * **Width & Height (in):** The dimensions of the rectangular support area.
+        * **Type:** * *Pinned:* Prevents translation (movement) but allows rotation (bending).
+            * *Fixed:* Prevents both translation and rotation.
+        """)
+        
     with st.expander("📋 View/Edit Support Coordinates", expanded=False):
         st.checkbox("🏷️ Show Support Identifiers", key="show_labels")
         
@@ -191,7 +200,6 @@ with col_bc:
 
 # --- 3B. SOLVER / RUN COLUMN ---
 with col_run:
-    # NEW: Added dedicated title for this column to match the UI style
     st.markdown('<div class="section-header">🚀 Solver</div>', unsafe_allow_html=True)
     
     solver_df = st.session_state.bc_df.copy()
@@ -306,6 +314,23 @@ with col_run:
 if st.session_state.run_finished:
     st.markdown("---")
     st.markdown('<div class="section-header">🕒 Interactive 3D Results</div>', unsafe_allow_html=True)
+    
+    # NEW: Added guide for using the 3D plot
+    with st.expander("🖱️ How to interact with the 3D Plot", expanded=False):
+        st.markdown("""
+        **On a Computer (Mouse):**
+        * **Rotate:** Left-click and drag.
+        * **Pan:** Right-click and drag (or `Shift` + Left-click).
+        * **Zoom:** Use the mouse scroll wheel.
+        
+        **On a Phone/Tablet (Touch):**
+        * **Rotate:** Swipe with one finger.
+        * **Pan:** Swipe with two fingers.
+        * **Zoom:** Pinch in or out with two fingers.
+        
+        *Tip: You can use the menu in the top right corner of the plot to reset the view or download a snapshot!*
+        """)
+
     steps = len(st.session_state.history)
     
     # Create a placeholder so we can render the plot BEFORE the controls below it
@@ -314,7 +339,7 @@ if st.session_state.run_finished:
     # ------------------------------------------
     # CONTROLS RENDERED BELOW THE PLOT
     # ------------------------------------------
-    st.markdown("<br>", unsafe_allow_html=True) # A tiny bit of spacing
+    st.markdown("<br>", unsafe_allow_html=True)
     
     idx = st.slider("Iteration History", 0, steps - 1, steps - 1)
     
