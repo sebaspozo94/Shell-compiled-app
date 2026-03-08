@@ -351,7 +351,7 @@ if st.session_state.run_finished:
         if use_true_scale:
             z_scale_pct = int(100*tmax/max(dimx, dimy))
         else:
-            if "z_scale_val" not in st.session_state: st.session_state.z_scale_val = 100
+            if "z_scale_val" not in st.session_state: st.session_state.z_scale_val = int(100*tmax/max(dimx, dimy))
             z_scale_pct = st.slider("Visual Z-Scale (%)", 0, 100, st.session_state.z_scale_val)
             st.session_state.z_scale_val = z_scale_pct
 
@@ -450,5 +450,6 @@ if st.session_state.run_finished:
 
     stl_data = generate_stl(X_mesh, Y_mesh, Z_plot_neg)
     st.download_button(label="📥 Download as .STL File", data=stl_data, file_name=f"Optimized_Slab_Iter{idx}.stl", mime="model/stl", type="primary")
+
 
 
