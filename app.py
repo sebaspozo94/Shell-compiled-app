@@ -172,17 +172,7 @@ with col_bc:
             if to_drop:
                 st.session_state.bc_df = st.session_state.bc_df.drop(to_drop).reset_index(drop=True)
                 st.rerun()
-    
-    # NEW: Added back the description of the boundary conditions table
-    with st.expander("ℹ️ How Supports Work", expanded=False):
-        st.markdown("""
-        Use the table below to manually edit the exact coordinates and dimensions of your supports.
-        * **X & Y (in):** The center location of the support.
-        * **Width & Height (in):** The dimensions of the rectangular support area.
-        * **Type:** * *Pinned:* Prevents translation (movement) but allows rotation (bending).
-            * *Fixed:* Prevents both translation and rotation.
-        """)
-        
+            
     with st.expander("📋 View/Edit Support Coordinates", expanded=False):
         st.checkbox("🏷️ Show Support Identifiers", key="show_labels")
         
@@ -197,6 +187,15 @@ with col_bc:
         if not edited_bc_df.drop(columns=["ID"]).equals(st.session_state.bc_df):
             st.session_state.bc_df = edited_bc_df.drop(columns=["ID"])
             st.rerun()
+        # NEW: Added back the description of the boundary conditions table
+        with st.expander("ℹ️ How Supports Work", expanded=False):
+            st.markdown("""
+            Use the table below to manually edit the exact coordinates and dimensions of your supports.
+            * **X & Y (in):** The center location of the support.
+            * **Width & Height (in):** The dimensions of the rectangular support area.
+            * **Type:** * *Pinned:* Prevents translation (movement) but allows rotation (bending).
+                * *Fixed:* Prevents both translation and rotation.
+            """)
 
 # --- 3B. SOLVER / RUN COLUMN ---
 with col_run:
@@ -450,3 +449,4 @@ if st.session_state.run_finished:
 
     stl_data = generate_stl(X_mesh, Y_mesh, Z_plot_neg)
     st.download_button(label="📥 Download as .STL File", data=stl_data, file_name=f"Optimized_Slab_Iter{idx}.stl", mime="model/stl", type="primary")
+
