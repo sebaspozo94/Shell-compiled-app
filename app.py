@@ -133,7 +133,7 @@ with col_bc:
     gx, gy = grid_x.flatten(), grid_y.flatten()
 
     grid_opacity = 0.3 if (add_mode or del_mode) else 0.0
-    grid_color = 'blue' if add_mode else 'red'
+    grid_color = 'green' if add_mode else 'blue'
 
     fig2d.add_trace(go.Scatter(
         x=gx, y=gy, mode='markers',
@@ -450,6 +450,7 @@ if st.session_state.run_finished:
 
     stl_data = generate_stl(X_mesh, Y_mesh, Z_plot_neg)
     st.download_button(label="📥 Download as .STL File", data=stl_data, file_name=f"Optimized_Slab_Iter{idx}.stl", mime="model/stl", type="primary")
+
 
 
 
