@@ -288,4 +288,140 @@ with col_run:
                 SW_val = 1 if self_weight else 0
                 X, Y, Thickness, history = logic.run_topology_optimization(
                     float(dimx), float(dimy), float(E), float(nu), float(rho), int(SW_val), 
-                    BCMatrix, float(w_u
+                    BCMatrix, float(w_u), int(nelx), int(nely), float(target_volume), 
+                    float(rmin), float(tmin), float(tmax), int(itmax), progress_callback=update_live_view
+                )
+                st.session_state.history, st.session_state.X, st.session_state.Y, st.session_state.run_finished = history, X, Y, True
+                st.rerun()
+
+    if st.session_state.run_finished and st.session_state.history is not None:
+        final_plotly_fig = plot_2d_thickness_plotly(st.session_state.history[-1])
+        live_plot_spot.plotly_chart(final_plotly_fig, use_container_width=True, key="final_result_plot")
+        status_text.success(f"✅ Optimization Complete! Iterations run: {len(st.session_state.history)}")
+
+
+# ==========================================
+# PART 4: INTERACTIVE 3D RESULTS
+# ==========================================
+if st.session_state.run_finished:
+    st.markdown("---")
+    st.markdown('<div class="section-header">🕒 Interactive 3D Results</div>', unsafe_allow_html=True)
+    steps = len(st.session_state.history)
+    
+    # Create a placeholder so we can render the plot BEFORE the controls below it
+    plot_placeholder = st.empty()
+    
+    # ------------------------------------------
+    # CONTROLS RENDERED BELOW THE PLOT
+    # ------------------------------------------
+    st.markdown("<br>", unsafe_allow_html=True) # A tiny bit of spacing
+    
+    idx = st.slider("Iteration History", 0, steps - 1, steps - 1)
+    
+    col_cam, col_scale = st.columns(2)
+    with col_cam:
+        view_choice = st.selectbox("🎥 Camera View", ["Default", "Bottom (XY)", "Front (XZ)", "Side (YZ)"])
+    with col_scale:
+        use_true_scale = st.checkbox("📏 True Z-Scale", value=False)
+        if use_true_scale:
+            z_scale_pct = int(100*tmax/max(dimx, dimy))
+        else:
+            if "z_scale_val" not in st.session_state: st.session_state.z_scale_val = 100
+            z_scale_pct = st.slider("Visual Z-Scale (%)", 0, 100, st.session_state.z_scale_val)
+            st.session_state.z_scale_val = z_scale_pct
+
+    # Interpret camera selection
+    if view_choice == "Bottom (XY)": cam_eye, cam_up = dict(x=0, y=0, z=-2.5), dict(x=0, y=1, z=0)
+    elif view_choice == "Front (XZ)": cam_eye, cam_up = dict(x=0, y=-2.5, z=0), dict(x=0, y=0, z=1)
+    elif view_choice == "Side (YZ)": cam_eye, cam_up = dict(x=-2.5, y=0, z=0), dict(x=0, y=0, z=1)
+    else: cam_eye, cam_up = dict(x=1.2, y=-1.5, z=-0.8), dict(x=0, y=0, z=1)
+    
+    # ------------------------------------------
+    # GENERATE PLOT DATA
+    # ------------------------------------------
+    Z_raw = st.session_state.history[idx]
+    Z_final = np.flipud(Z_raw).T 
+    
+    x_coords = np.linspace(0, dimx, Z_final.shape[1])
+    y_coords = np.linspace(0, dimy, Z_final.shape[0])
+    X_mesh, Y_mesh = np.meshgrid(x_coords, y_coords)
+
+    Z_plot_neg = -Z_final 
+    custom_colorscale = [[0.0, '#08306b'], [0.4, '#2563eb'], [1.0, '#cbd5e1']]
+
+    roof_surface = go.Surface(z=np.zeros_like(Z_plot_neg), x=X_mesh, y=Y_mesh, colorscale=[[0, '#cbd5e1'], [1, '#cbd5e1']], showscale=False, hoverinfo='skip')
+    
+    bottom_surface = go.Surface(
+        z=Z_plot_neg, 
+        x=X_mesh, 
+        y=Y_mesh, 
+        colorscale=custom_colorscale, 
+        cmin=-tmax, 
+        cmax=0, 
+        colorbar=dict(
+            title='Thickness (in)',
+            orientation='h',
+            x=0.5,
+            y=1.05,
+            xanchor='center',
+            yanchor='bottom',
+            thickness=12,
+            len=0.6
+        )
+    )
+
+    fig = go.Figure(data=[roof_surface, bottom_surface])
+
+    support_depth = -tmax * 1.2
+    
+    for i, row in st.session_state.run_bc_df.iterrows():
+        hx, hy = row['Width'] / 2.0, row['Height'] / 2.0
+        x_min, x_max = row['X (in)'] - hx, row['X (in)'] + hx
+        y_min, y_max = row['Y (in)'] - hy, row['Y (in)'] + hy
+        
+        fig.add_trace(go.Mesh3d(
+            x=[x_min, x_max, x_max, x_min, x_min, x_max, x_max, x_min],
+            y=[y_min, y_min, y_max, y_max, y_min, y_min, y_max, y_max],
+            z=[support_depth, support_depth, support_depth, support_depth, tmax * 0.1, tmax * 0.1, tmax * 0.1, tmax * 0.1],
+            i=[7, 0, 0, 0, 4, 4, 6, 6, 4, 0, 3, 2],
+            j=[3, 4, 1, 2, 5, 6, 5, 2, 0, 1, 6, 3],
+            k=[0, 7, 2, 3, 6, 7, 1, 1, 5, 5, 7, 6],
+            color='red', 
+            opacity=0.8, 
+            flatshading=True,
+            name=f"Support S{i+1}",
+            showlegend=False
+        ))
+
+    fig.update_layout(
+        scene=dict(
+            xaxis=dict(range=[-0.05 * dimx, 1.05 * dimx], title='X (in)'),
+            yaxis=dict(range=[-0.05 * dimy, 1.05 * dimy], title='Y (in)'),
+            zaxis=dict(range=[support_depth, tmax * 0.2], title='Z (in)'),
+            aspectratio=dict(x=dimx/max(dimx, dimy), y=dimy/max(dimx, dimy), z=z_scale_pct/100.0),
+            camera=dict(eye=cam_eye, up=cam_up)
+        ),
+        margin=dict(l=0, r=0, b=0, t=50), height=600
+    )
+    
+    # ------------------------------------------
+    # INJECT PLOT INTO PLACEHOLDER (ABOVE CONTROLS)
+    # ------------------------------------------
+    plot_placeholder.plotly_chart(fig, use_container_width=True)
+    
+    # STL Export
+    st.markdown("---")
+    st.subheader("💾 Export Geometry")
+    def generate_stl(X, Y, Z):
+        points2D = np.column_stack([X.flatten(), Y.flatten()])
+        tri = Delaunay(points2D)
+        slab_mesh = mesh.Mesh(np.zeros(tri.simplices.shape[0], dtype=mesh.Mesh.dtype))
+        for i, f in enumerate(tri.simplices):
+            for j in range(3):
+                slab_mesh.vectors[i][j] = [points2D[f[j], 0], points2D[f[j], 1], Z.flatten()[f[j]]]
+        buf = io.BytesIO()
+        slab_mesh.save('slab.stl', fh=buf)
+        return buf.getvalue()
+
+    stl_data = generate_stl(X_mesh, Y_mesh, Z_plot_neg)
+    st.download_button(label="📥 Download as .STL File", data=stl_data, file_name=f"Optimized_Slab_Iter{idx}.stl", mime="model/stl", type="primary")
