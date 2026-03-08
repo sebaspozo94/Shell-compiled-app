@@ -222,7 +222,7 @@ with col_run:
         
         custom_cmap = LinearSegmentedColormap.from_list("custom_blue", ['#cbd5e1', '#2563eb', '#08306b'])
         
-        ax.imshow(np.flipud(Z_matrix), cmap=custom_cmap, extent=[0, dimx, 0, dimy], 
+        ax.imshow(Z_matrix, cmap=custom_cmap, extent=[0, dimx, 0, dimy], 
                   vmin=0, vmax=tmax, interpolation='nearest')
         
         border = patches.Rectangle((0, 0), dimx, dimy, linewidth=2, edgecolor='#0f172a', 
@@ -252,7 +252,7 @@ with col_run:
         
         custom_colorscale_plotly = [[0.0, '#cbd5e1'], [0.5, '#2563eb'], [1.0, '#08306b']]
         fig.add_trace(go.Heatmap(
-            z=np.flipud(Z_matrix.T),
+            z=np.flipud(Z_matrix),
             x=np.linspace(0, dimx, Z_matrix.shape[1]),
             y=np.linspace(0, dimy, Z_matrix.shape[0]),
             colorscale=custom_colorscale_plotly,
@@ -450,6 +450,7 @@ if st.session_state.run_finished:
 
     stl_data = generate_stl(X_mesh, Y_mesh, Z_plot_neg)
     st.download_button(label="📥 Download as .STL File", data=stl_data, file_name=f"Optimized_Slab_Iter{idx}.stl", mime="model/stl", type="primary")
+
 
 
 
