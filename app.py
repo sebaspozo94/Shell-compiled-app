@@ -193,7 +193,8 @@ with col_bc:
             Use the table below to manually edit the exact coordinates and dimensions of your supports.
             * **X & Y (in):** The center location of the support.
             * **Width & Height (in):** The dimensions of the rectangular support area.
-            * **Type:** * *Pinned:* Prevents translation (movement) but allows rotation (bending).
+            * **Type:** 
+                * *Pinned:* Prevents translation (movement) but allows rotation (bending).
                 * *Fixed:* Prevents both translation and rotation.
             """)
 
@@ -449,4 +450,5 @@ if st.session_state.run_finished:
 
     stl_data = generate_stl(X_mesh, Y_mesh, Z_plot_neg)
     st.download_button(label="📥 Download as .STL File", data=stl_data, file_name=f"Optimized_Slab_Iter{idx}.stl", mime="model/stl", type="primary")
+
 
