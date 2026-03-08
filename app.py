@@ -365,7 +365,7 @@ if st.session_state.run_finished:
     # GENERATE PLOT DATA
     # ------------------------------------------
     Z_raw = st.session_state.history[idx]
-    Z_final = np.flipud(Z_raw).T 
+    Z_final = np.flipud(Z_raw) 
     
     x_coords = np.linspace(0, dimx, Z_final.shape[1])
     y_coords = np.linspace(0, dimy, Z_final.shape[0])
@@ -450,6 +450,7 @@ if st.session_state.run_finished:
 
     stl_data = generate_stl(X_mesh, Y_mesh, Z_plot_neg)
     st.download_button(label="📥 Download as .STL File", data=stl_data, file_name=f"Optimized_Slab_Iter{idx}.stl", mime="model/stl", type="primary")
+
 
 
 
