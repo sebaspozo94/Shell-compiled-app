@@ -252,8 +252,7 @@ with col_run:
         
         custom_colorscale_plotly = [[0.0, '#cbd5e1'], [0.5, '#2563eb'], [1.0, '#08306b']]
         fig.add_trace(go.Heatmap(
-            #z=np.flipud(Z_matrix),
-            z=Z_matrix,
+            z=np.flipud(Z_matrix.T),
             x=np.linspace(0, dimx, Z_matrix.shape[1]),
             y=np.linspace(0, dimy, Z_matrix.shape[0]),
             colorscale=custom_colorscale_plotly,
@@ -451,6 +450,7 @@ if st.session_state.run_finished:
 
     stl_data = generate_stl(X_mesh, Y_mesh, Z_plot_neg)
     st.download_button(label="📥 Download as .STL File", data=stl_data, file_name=f"Optimized_Slab_Iter{idx}.stl", mime="model/stl", type="primary")
+
 
 
 
