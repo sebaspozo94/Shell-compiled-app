@@ -1,5 +1,5 @@
 # Shell Topology Optimization 🏗️
 
-![App Preview](test.png)
+![App Preview](Opt_Shell_app.png)
 
 This application performs shell topology optimization and visualizes XYZ surface data.
