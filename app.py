@@ -3,7 +3,7 @@ import numpy as np
 import logic  # Ensure logic.so is in the same directory
 import plotly.graph_objects as go
 import io
-import stl              
+import stl               
 from stl import mesh 
 from scipy.spatial import Delaunay
 import pandas as pd
@@ -20,6 +20,16 @@ st.markdown("""
     .tag-container { display: flex; gap: 10px; margin-bottom: 1.5rem; }
     .tag { background-color: #f1f5f9; color: #475569; padding: 4px 12px; border-radius: 9999px; font-size: 0.85rem; font-weight: 500; border: 1px solid #e2e8f0; }
     .section-header { font-size: 1.25rem; font-weight: 700; color: #1e293b; margin-top: 1rem; margin-bottom: 0.5rem; }
+    /* Forces the updating image to match the Plotly charts */
+    [data-testid="stImage"] img {
+        max-height: 600px;
+        width: auto;
+        object-fit: contain;
+        margin-left: auto;
+        margin-right: auto;
+        display: block;
+        border-radius: 8px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -27,7 +37,7 @@ st.markdown("""
 # PART 1: HEADER & OBJECTIVE
 # ==========================================
 st.markdown('<div class="main-header">Shell Topology Optimization</div>', unsafe_allow_html=True)
-st.markdown('<div class="tag-container"><span class="tag">Optimization</span><span class="tag">Shell</span><span class="tag">FEA Engine</span></div>', unsafe_allow_html=True)
+st.markdown('<div class="tag-container"><span class="tag">Shell</span><span class="tag">Optimization</span><span class="tag">FEA Engine</span></div>', unsafe_allow_html=True)
 
 with st.expander("🎯 App Objective", expanded=False):
     st.markdown("""
@@ -54,37 +64,51 @@ if "run_bc_df" not in st.session_state:
 if "show_labels" not in st.session_state:
     st.session_state.show_labels = False
 
-# --- SIDEBAR (Materials & Loads) ---
-with st.sidebar:
-    st.header("🧪 Material Properties")
-    E = st.number_input("Elastic Modulus (psi)", value=1500000, step=100000)
-    nu = st.slider("Poisson's Ratio (v)", 0.0, 0.5, 0.30)
-    rho = st.number_input("Material Density (p)", value=0.010, format="%.3f")
-    self_weight = st.checkbox("Include Self-Weight", value=True)
-
-    st.header("⚖️ Loads")
-    w_u = st.number_input("Distributed Load (w_u)", value=0.2778)
+# Plotly toolbar config dictionary
+PLOTLY_CONFIG = {
+    'displayModeBar': True,
+    'scrollZoom': True
+}
 
 # ==========================================
 # PART 2: MODEL CONFIGURATION
 # ==========================================
 st.markdown('<div class="section-header">⚙️ Model Configuration</div>', unsafe_allow_html=True)
-conf_col1, conf_col2, conf_col3 = st.columns(3)
+
+conf_col1, conf_col2, conf_col3, conf_col4 = st.columns(4)
 
 with conf_col1:
     with st.expander("📏 Domain & Mesh", expanded=False):
         dimx = st.number_input("Domain X (in)", value=240, step=4, min_value=1)
         dimy = st.number_input("Domain Y (in)", value=192, step=4, min_value=1)
-        nelx = st.number_input("Elements X", value=120, step=4, min_value=1, max_value=150)
-        nely = st.number_input("Elements Y", value=96, step=4, min_value=1, max_value=150)
+        mesh_size = st.number_input("Mesh Size (in)", value=2.0, step=0.5, min_value=0.1)
+        
+        # Calculate elements based on mesh size
+        nelx = int(dimx / mesh_size)
+        nely = int(dimy / mesh_size)
+        total_elements = nelx * nely
+        
+        if total_elements > 20000:
+            st.error(f"🚨 Mesh is too fine! Total elements: {total_elements:,}. The max allowed is 20,000.")
+            st.stop()
+        else:
+            st.success(f"Grid: {nelx} x {nely}\n\nTotal: {total_elements:,}")
 
 with conf_col2:
+    with st.expander("🧪 Materials & Loads", expanded=False):
+        E = st.number_input("Elastic Modulus (psi)", value=1500000, step=100000)
+        nu = st.slider("Poisson's Ratio (v)", 0.0, 0.5, 0.30)
+        rho = st.number_input("Material Density (p)", value=0.010, format="%.3f")
+        w_u = st.number_input("Distributed Load (w_u)", value=0.2778, format="%.4f")
+        self_weight = st.checkbox("Include Self-Weight", value=True)
+
+with conf_col3:
     with st.expander("🎯 Optimization Settings", expanded=False):
         vol_frac = st.slider("Volume Fraction", 0.05, 1.0, 0.3)
         rmin = st.number_input("Filter Radius (rmin)", value=5.0, step=1.0)
         itmax = st.number_input("Max Iterations", value=50, step=10)
 
-with conf_col3:
+with conf_col4:
     with st.expander("📐 Thickness Limits", expanded=False):
         tmin = st.number_input("Min Thickness (in)", value=2.0, step=0.5)
         tmax = st.number_input("Max Thickness (in)", value=12.0, step=0.5)
@@ -96,9 +120,9 @@ st.markdown("---")
 # ==========================================
 col_bc, col_run = st.columns(2)
 
-# --- 3A. BOUNDARY CONDITIONS COLUMN ---
+# --- 3A. INTERACTIVE PLOT COLUMN ---
 with col_bc:
-    st.markdown('<div class="section-header">🎛️ Boundary Conditions</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header">🎛️ Setup (Click to edit)</div>', unsafe_allow_html=True)
     
     if 'add_t' not in st.session_state: st.session_state.add_t = False
     if 'del_t' not in st.session_state: st.session_state.del_t = False
@@ -110,8 +134,8 @@ with col_bc:
         if st.session_state.del_t: st.session_state.add_t = False
 
     col_t1, col_t2 = st.columns(2)
-    add_mode = col_t1.toggle("➕ ADD", key="add_t", on_change=on_add_toggle)
-    del_mode = col_t2.toggle("➖ DELETE", key="del_t", on_change=on_del_toggle)
+    add_mode = col_t1.toggle("➕ ADD Support", key="add_t", on_change=on_add_toggle)
+    del_mode = col_t2.toggle("➖ DEL Support", key="del_t", on_change=on_del_toggle)
 
     fig2d = go.Figure()
 
@@ -142,6 +166,7 @@ with col_bc:
     ))
 
     fig2d.update_layout(
+        height=600,
         autosize=True,
         xaxis=dict(range=[-10, dimx+10], constrain='domain'), 
         yaxis=dict(range=[-10, dimy+10], scaleanchor="x", scaleratio=1, constrain='domain'), 
@@ -149,7 +174,7 @@ with col_bc:
         margin=dict(l=0, r=0, t=0, b=0), showlegend=False
     )
 
-    event = st.plotly_chart(fig2d, on_select="rerun", key="bc_map", use_container_width=True)
+    event = st.plotly_chart(fig2d, on_select="rerun", key="setup_map", use_container_width=True, config=PLOTLY_CONFIG)
 
     if event and "selection" in event and len(event["selection"]["points"]) > 0:
         pt = event["selection"]["points"][0]
@@ -172,29 +197,33 @@ with col_bc:
             if to_drop:
                 st.session_state.bc_df = st.session_state.bc_df.drop(to_drop).reset_index(drop=True)
                 st.rerun()
+
+    # --- UI ORGANIZATION VIA TABS ---
+    with st.expander("🛠️ Modify Boundary Conditions", expanded=False):
+        tab_labels, tab_bc, tab_info = st.tabs(["👁️ Labels", "📋 Supports", "ℹ️ Info"])
+        
+        with tab_labels:
+            st.checkbox("🏷️ Show Identifiers on Setup Plot", key="show_labels")
             
-    with st.expander("📋 View/Edit Support Coordinates", expanded=False):
-        st.checkbox("🏷️ Show Support Identifiers", key="show_labels")
-        
-        display_df = st.session_state.bc_df.copy()
-        display_df.insert(0, "ID", [f"S{i+1}" for i in range(len(display_df))])
-        
-        edited_bc_df = st.data_editor(
-            display_df, 
-            num_rows="dynamic", use_container_width=True, hide_index=True, 
-            column_config={"ID": st.column_config.TextColumn(disabled=True), "Type": st.column_config.SelectboxColumn("Type", options=["Pinned", "Fixed"])}
-        )
-        if not edited_bc_df.drop(columns=["ID"]).equals(st.session_state.bc_df):
-            st.session_state.bc_df = edited_bc_df.drop(columns=["ID"])
-            st.rerun()
-        # NEW: Added back the description of the boundary conditions table
-        with st.expander("ℹ️ How Supports Work", expanded=False):
+        with tab_bc:
+            display_df = st.session_state.bc_df.copy()
+            display_df.insert(0, "ID", [f"S{i+1}" for i in range(len(display_df))])
+            
+            edited_bc_df = st.data_editor(
+                display_df, 
+                num_rows="dynamic", use_container_width=True, hide_index=True, 
+                column_config={"ID": st.column_config.TextColumn(disabled=True), "Type": st.column_config.SelectboxColumn("Type", options=["Pinned", "Fixed"])}
+            )
+            if not edited_bc_df.drop(columns=["ID"]).equals(st.session_state.bc_df):
+                st.session_state.bc_df = edited_bc_df.drop(columns=["ID"])
+                st.rerun()
+
+        with tab_info:
             st.markdown("""
             Use the table below to manually edit the exact coordinates and dimensions of your supports.
             * **X & Y (in):** The center location of the support.
             * **Width & Height (in):** The dimensions of the rectangular support area.
-            * **Type:** 
-                * *Pinned:* Prevents translation (movement) but allows rotation (bending).
+            * **Type:** * *Pinned:* Prevents translation (movement) but allows rotation (bending).
                 * *Fixed:* Prevents both translation and rotation.
             """)
 
@@ -208,6 +237,8 @@ with col_run:
 
     run_pressed = st.button("🚀 Run Optimization", type="primary", use_container_width=True)
     
+    # Placeholders for live plotting
+    color_bar_spot = st.empty()
     live_plot_spot = st.empty()
     status_text = st.empty()
 
@@ -256,7 +287,15 @@ with col_run:
             x=np.linspace(0, dimx, Z_matrix.shape[1]),
             y=np.linspace(0, dimy, Z_matrix.shape[0]),
             colorscale=custom_colorscale_plotly,
-            zmin=0, zmax=tmax, showscale=False, hoverinfo='skip'
+            zmin=0, zmax=tmax, 
+            showscale=True, 
+            colorbar=dict(
+                title='Thickness (in)', 
+                orientation='h', x=0.5, y=1.05, 
+                xanchor='center', yanchor='bottom', 
+                thickness=15, len=0.8
+            ), 
+            hoverinfo='skip'
         ))
         
         fig.add_shape(type="rect", x0=0, y0=0, x1=dimx, y1=dimy, 
@@ -271,6 +310,7 @@ with col_run:
                           line=dict(color='red', width=1), fillcolor='rgba(255,0,0,0.4)')
             
         fig.update_layout(
+            height=600,
             autosize=True,
             xaxis=dict(range=[-10, dimx+10], constrain='domain'), 
             yaxis=dict(range=[-10, dimy+10], scaleanchor="x", scaleratio=1, constrain='domain'), 
@@ -286,6 +326,16 @@ with col_run:
             
             total_area = dimx * dimy
             target_volume = (total_area * tmin) + (vol_frac * total_area * (tmax - tmin))
+            
+            gradient_html = f"""
+            <div style="text-align: center; margin-bottom: 5px; font-weight: bold; color: #475569; font-size: 0.9rem;">Thickness (in)</div>
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; padding: 0 10px;">
+                <span style="font-size: 0.8rem; font-weight: bold;">0</span>
+                <div style="flex-grow: 1; height: 12px; margin: 0 10px; background: linear-gradient(to right, #cbd5e1 0%, #2563eb 50%, #08306b 100%); border: 1px solid #cbd5e1; border-radius: 4px;"></div>
+                <span style="font-size: 0.8rem; font-weight: bold;">{tmax}</span>
+            </div>
+            """
+            color_bar_spot.markdown(gradient_html, unsafe_allow_html=True)
             
             def update_live_view(current_it, current_ch, current_Z):
                 img_buffer = plot_2d_thickness_mpl(current_Z)
@@ -303,8 +353,9 @@ with col_run:
                 st.rerun()
 
     if st.session_state.run_finished and st.session_state.history is not None:
+        color_bar_spot.empty() 
         final_plotly_fig = plot_2d_thickness_plotly(st.session_state.history[-1])
-        live_plot_spot.plotly_chart(final_plotly_fig, use_container_width=True, key="final_result_plot")
+        live_plot_spot.plotly_chart(final_plotly_fig, use_container_width=True, key="final_result_plot", config=PLOTLY_CONFIG)
         status_text.success(f"✅ Optimization Complete! Iterations run: {len(st.session_state.history)}")
 
 
@@ -315,7 +366,6 @@ if st.session_state.run_finished:
     st.markdown("---")
     st.markdown('<div class="section-header">🕒 Interactive 3D Results</div>', unsafe_allow_html=True)
     
-    # NEW: Added guide for using the 3D plot
     with st.expander("🖱️ How to interact with the 3D Plot", expanded=False):
         st.markdown("""
         **On a Computer (Mouse):**
@@ -332,13 +382,8 @@ if st.session_state.run_finished:
         """)
 
     steps = len(st.session_state.history)
-    
-    # Create a placeholder so we can render the plot BEFORE the controls below it
     plot_placeholder = st.empty()
     
-    # ------------------------------------------
-    # CONTROLS RENDERED BELOW THE PLOT
-    # ------------------------------------------
     st.markdown("<br>", unsafe_allow_html=True)
     
     idx = st.slider("Iteration History", 0, steps - 1, steps - 1)
@@ -355,15 +400,11 @@ if st.session_state.run_finished:
             z_scale_pct = st.slider("Visual Z-Scale (%)", 0, 100, st.session_state.z_scale_val)
             st.session_state.z_scale_val = z_scale_pct
 
-    # Interpret camera selection
     if view_choice == "Bottom (XY)": cam_eye, cam_up = dict(x=0, y=0, z=-2.5), dict(x=0, y=1, z=0)
     elif view_choice == "Front (XZ)": cam_eye, cam_up = dict(x=0, y=-2.5, z=0), dict(x=0, y=0, z=1)
     elif view_choice == "Side (YZ)": cam_eye, cam_up = dict(x=-2.5, y=0, z=0), dict(x=0, y=0, z=1)
     else: cam_eye, cam_up = dict(x=1.2, y=-1.5, z=-0.8), dict(x=0, y=0, z=1)
     
-    # ------------------------------------------
-    # GENERATE PLOT DATA
-    # ------------------------------------------
     Z_raw = st.session_state.history[idx]
     Z_final = np.flipud(Z_raw) 
     
@@ -374,28 +415,65 @@ if st.session_state.run_finished:
     Z_plot_neg = -Z_final 
     custom_colorscale = [[0.0, '#08306b'], [0.4, '#2563eb'], [1.0, '#cbd5e1']]
 
-    roof_surface = go.Surface(z=np.zeros_like(Z_plot_neg), x=X_mesh, y=Y_mesh, colorscale=[[0, '#cbd5e1'], [1, '#cbd5e1']], showscale=False, hoverinfo='skip',opacity=0.8)
+    # Advanced lighting settings to make the 3D plot look solid and high-end
+    lighting_effects = dict(ambient=0.6, diffuse=0.8, roughness=0.4, specular=0.5, fresnel=0.2)
+
+    # Main Top and Bottom Surfaces
+    roof_surface = go.Surface(
+        z=np.zeros_like(Z_plot_neg), x=X_mesh, y=Y_mesh, 
+        colorscale=[[0, '#cbd5e1'], [1, '#cbd5e1']], 
+        showscale=False, hoverinfo='skip', opacity=1.0, lighting=lighting_effects
+    )
     
     bottom_surface = go.Surface(
-        z=Z_plot_neg, 
-        x=X_mesh, 
-        y=Y_mesh, 
-        colorscale=custom_colorscale, 
-        cmin=-tmax, 
-        cmax=0, 
+        z=Z_plot_neg, x=X_mesh, y=Y_mesh, 
+        surfacecolor=Z_plot_neg,
+        colorscale=custom_colorscale, cmin=-tmax, cmax=0, 
+        lighting=lighting_effects,
         colorbar=dict(
-            title='Thickness (in)',
-            orientation='h',
-            x=0.5,
-            y=1.05,
-            xanchor='center',
-            yanchor='bottom',
-            thickness=12,
-            len=0.6
+            title='Thickness (in)', orientation='h',
+            x=0.5, y=1.05, xanchor='center', yanchor='bottom',
+            thickness=12, len=0.6
         )
     )
 
-    fig = go.Figure(data=[roof_surface, bottom_surface])
+    # Generate 4 Side walls to close the geometry into a solid body
+    side_surfaces = []
+    
+    # Front Wall (y=0)
+    side_surfaces.append(go.Surface(
+        x=np.vstack((X_mesh[0, :], X_mesh[0, :])),
+        y=np.vstack((Y_mesh[0, :], Y_mesh[0, :])),
+        z=np.vstack((np.zeros_like(Z_plot_neg[0, :]), Z_plot_neg[0, :])),
+        surfacecolor=np.vstack((Z_plot_neg[0, :], Z_plot_neg[0, :])),
+        colorscale=custom_colorscale, cmin=-tmax, cmax=0, showscale=False, hoverinfo='skip', lighting=lighting_effects
+    ))
+    # Back Wall (y=max)
+    side_surfaces.append(go.Surface(
+        x=np.vstack((X_mesh[-1, :], X_mesh[-1, :])),
+        y=np.vstack((Y_mesh[-1, :], Y_mesh[-1, :])),
+        z=np.vstack((np.zeros_like(Z_plot_neg[-1, :]), Z_plot_neg[-1, :])),
+        surfacecolor=np.vstack((Z_plot_neg[-1, :], Z_plot_neg[-1, :])),
+        colorscale=custom_colorscale, cmin=-tmax, cmax=0, showscale=False, hoverinfo='skip', lighting=lighting_effects
+    ))
+    # Left Wall (x=0)
+    side_surfaces.append(go.Surface(
+        x=np.vstack((X_mesh[:, 0], X_mesh[:, 0])).T,
+        y=np.vstack((Y_mesh[:, 0], Y_mesh[:, 0])).T,
+        z=np.vstack((np.zeros_like(Z_plot_neg[:, 0]), Z_plot_neg[:, 0])).T,
+        surfacecolor=np.vstack((Z_plot_neg[:, 0], Z_plot_neg[:, 0])).T,
+        colorscale=custom_colorscale, cmin=-tmax, cmax=0, showscale=False, hoverinfo='skip', lighting=lighting_effects
+    ))
+    # Right Wall (x=max)
+    side_surfaces.append(go.Surface(
+        x=np.vstack((X_mesh[:, -1], X_mesh[:, -1])).T,
+        y=np.vstack((Y_mesh[:, -1], Y_mesh[:, -1])).T,
+        z=np.vstack((np.zeros_like(Z_plot_neg[:, -1]), Z_plot_neg[:, -1])).T,
+        surfacecolor=np.vstack((Z_plot_neg[:, -1], Z_plot_neg[:, -1])).T,
+        colorscale=custom_colorscale, cmin=-tmax, cmax=0, showscale=False, hoverinfo='skip', lighting=lighting_effects
+    ))
+
+    fig = go.Figure(data=[roof_surface, bottom_surface] + side_surfaces)
 
     support_depth = -tmax * 1.2
     
@@ -429,10 +507,7 @@ if st.session_state.run_finished:
         margin=dict(l=0, r=0, b=0, t=50), height=600
     )
     
-    # ------------------------------------------
-    # INJECT PLOT INTO PLACEHOLDER (ABOVE CONTROLS)
-    # ------------------------------------------
-    plot_placeholder.plotly_chart(fig, use_container_width=True)
+    plot_placeholder.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG)
     
     # STL Export
     st.markdown("---")
@@ -451,16 +526,22 @@ if st.session_state.run_finished:
     stl_data = generate_stl(X_mesh, Y_mesh, Z_plot_neg)
     st.download_button(label="📥 Download as .STL File", data=stl_data, file_name=f"Optimized_Slab_Iter{idx}.stl", mime="model/stl", type="primary")
 
+# ==========================================
+# PART 5: AUTHOR & CONTACT INFO
+# ==========================================
+st.markdown("---")
+st.markdown('<div class="section-header">📬 Contact & Info</div>', unsafe_allow_html=True)
 
-
-
-
-
-
-
-
-
-
-
-
-
+col_info1, col_info2 = st.columns([2, 1])
+with col_info1:
+    st.markdown("""
+    **Created by:** Sebastian Pozo Ocampo  
+    **Contact:** [sebaspozo94@gmail.com](mailto:sebaspozo94@gmail.com)
+    """)
+with col_info2:
+    st.markdown("""
+    *Connect with me:*
+    * [Website](https://streamline-gallery-5d621e11.buildaispace.app)  
+    * [LinkedIn](https://www.linkedin.com/in/sebastianpozo94/)
+    * [GitHub](https://github.com/sebaspozo94)
+    """)
